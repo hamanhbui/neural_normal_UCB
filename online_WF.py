@@ -70,9 +70,9 @@ def greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps, epsilon):
 		reward[t] = r
 		# calculate regert
 		if t < T/2:
-			reg[t] = np.abs(r_opt - r)
+			reg[t] = r_opt - r
 		else:
-			reg[t] = np.abs(r_opt_ood - r)
+			reg[t] = r_opt_ood - r
 	
 	return reg, reward
 
@@ -98,9 +98,9 @@ def non_stationary_greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_ep
 		reward[t] = r
 		# calculate regert
 		if t < T/2:
-			reg[t] = np.abs(r_opt - r)
+			reg[t] = r_opt - r
 		else:
-			reg[t] = np.abs(r_opt_ood - r)
+			reg[t] = r_opt_ood - r
 	
 	return reg, reward
 
@@ -128,9 +128,9 @@ def CUCB_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
 		reward[t] = r
 		# calculate regert
 		if t < T/2:
-			reg[t] = np.abs(r_opt - r)
+			reg[t] = r_opt - r
 		else:
-			reg[t] = np.abs(r_opt_ood - r)
+			reg[t] = r_opt_ood - r
 	
 	return reg, reward
 
@@ -159,9 +159,9 @@ def CUCB_density_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
 		reward[t] = r
 		# calculate regert
 		if t < T/2:
-			reg[t] = np.abs(r_opt - r)
+			reg[t] = r_opt - r
 		else:
-			reg[t] = np.abs(r_opt_ood - r)
+			reg[t] = r_opt_ood - r
 	
 	return reg, reward
 
@@ -187,7 +187,7 @@ def CUCB_density_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
 # 		optimizer.apply_gradients(zip(grads, model.trainable_weights))
 
 # 		# calculate regert
-# 		reg[t] = np.abs(r_opt - r)
+# 		reg[t] = r_opt - r
 	
 # 	return reg
 

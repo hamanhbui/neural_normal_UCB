@@ -1,13 +1,17 @@
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 dataframe1 = pd.read_excel('data/texas_ICU_beds.xlsx')
 
 list_data = []
-for index in range(2, dataframe1.shape[1], 1):     
-	columnSeriesObj = dataframe1.iloc[:, index]
-	list_data.append(columnSeriesObj.values)
+for index in range(2, dataframe1.shape[1], 1): 
+	for t in range(2):    
+		columnSeriesObj = dataframe1.iloc[:, index]
+		list_data.append(columnSeriesObj.values[:-1])
 	
 list_data = np.array(list_data)
 
@@ -23,7 +27,8 @@ def oracle(mu, Q):
 
 	return a
 
-def greedy(X_mean, K, Q, T, epsilon):
+def greedy(list_data, K, Q, T, epsilon):
+	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
 	T_ka = np.zeros((K, Q+1))# total number of times arm (k,a) is played
@@ -36,15 +41,20 @@ def greedy(X_mean, K, Q, T, epsilon):
 		r = 0
 		for i in range(K):
 			X_k = list_data[t][i]
-			r_k = -np.abs(X_k - a[i])
+			r_k = -max(0, a[i] - X_k)
+			# r_k = -np.abs(X_k - a[i])
 			r += r_k
 			T_ka[i, a[i]] += 1
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
+		# calculate regert
+		r_opt = -max(0, Q - sum(list_data[t]))
+		reg[t] = r_opt - r
 	
-	return reward
+	return reg, reward
 
-def CUCB_RA(X_mean, K, Q, T):
+def CUCB_RA(list_data, K, Q, T):
+	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
 	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
@@ -56,13 +66,71 @@ def CUCB_RA(X_mean, K, Q, T):
 		r = 0
 		for i in range(K):
 			X_k = list_data[t][i]
-			r_k = -np.abs(X_k - a[i])
+			r_k = -max(0, a[i] - X_k)
+			# r_k = -np.abs(X_k - a[i])
 			r += r_k
 			T_ka[i, a[i]] += 1
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
+		# calculate regert
+		r_opt = -max(0, Q - sum(list_data[t]))
+		reg[t] = r_opt - r
 	
-	return reward
+	return reg, reward
+
+def CNeural_RA(list_data, K, Q, T):
+	reg = np.zeros(T)
+	reward = np.zeros(T)
+	metrics = {'nll': tf.keras.metrics.Mean()}
+	model = tf.keras.Sequential([
+		# tf.keras.layers.Dense(32, activation="relu"),
+		tf.keras.layers.Dense(Q+1),
+	])
+	optimizer = tf.keras.optimizers.Adam()
+	x_train, a_train, y_train = [], [], []
+	train_loss = np.zeros(T)
+	for t in range(T):
+		context = np.expand_dims(list_data[t], axis = 1)
+		mu_bar = model(context)
+		a = oracle(mu_bar, Q)
+		r = []
+		for i in range(K):
+			X_k = list_data[t][i]
+			r_k = -max(0, a[i] - X_k)
+			r.append(r_k)
+		reward[t] = sum(r)
+		# calculate regert
+		r_opt = -max(0, Q - sum(list_data[t]))
+		reg[t] = r_opt - sum(r)
+
+		#Update model
+		x_train, a_train, y_train = [], [], []
+		a_train.append(a)
+		x_train.append(context)
+		y_train.append(np.array(r, dtype = np.float32))
+		train_dataset = tf.data.Dataset.from_tensor_slices((x_train, a_train, y_train))
+
+		for step, (x_batch_train, a_batch_train, y_batch_train) in enumerate(train_dataset):
+			with tf.GradientTape() as tape:
+				mu_bar = model(x_batch_train)
+				# a = oracle(mu_bar, Q)
+				loss = 0
+				for i in range(K):
+					loss += tf.pow(mu_bar[i][a_batch_train[i]] - y_batch_train[i], 2)
+				# loss = loss/K
+			grads = tape.gradient(loss, model.trainable_weights)
+			optimizer.apply_gradients(zip(grads, model.trainable_weights))
+			metrics['nll'].update_state(loss)
+
+		train_loss[t] = metrics['nll'].result()
+		for metric in metrics.values():
+			metric.reset_states()
+
+	plt.plot(train_loss)
+	plt.savefig("out/train_loss.png")
+	plt.clf()
+	return reg, reward
+
 
 def plot_by_normal(plt, value, label, color):
 	mean = np.mean(np.array(value), axis = 0)
@@ -71,26 +139,45 @@ def plot_by_normal(plt, value, label, color):
 	plt.plot(mean, label = label, color = color)
 
 if __name__ == "__main__":
+	N = 1
+	Q = 500
+	T = list_data.shape[0]
+	K = list_data.shape[1]
 	reg_UCB, reg_greedy, eps_greedy, reg_gp = [], [], [], []
 	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
 
-	N = 10
-	Q = 1000
-	T = list_data.shape[0]
-	K = list_data.shape[1]
-	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
-
 	for i in range(N):
-		reward = CUCB_RA(list_data, K, Q, T)
+		reg, reward = CNeural_RA(list_data, K, Q, T)
+		reg_gp.append(np.cumsum(reg))
+		reward_gp.append(reward)
+		reg, reward = CUCB_RA(list_data, K, Q, T)
+		reg_UCB.append(np.cumsum(reg))
 		reward_UCB.append(reward)
-		reward = greedy(list_data, K, Q, T, 0)
+		reg, reward = greedy(list_data, K, Q, T, 0)
+		reg_greedy.append(np.cumsum(reg))
 		reward_greedy.append(reward)
-		reward = greedy(list_data, K, Q, T, 0.1)
-		eps_greedy.append(reward)
+		reg, reward = greedy(list_data, K, Q, T, 0.1)
+		eps_greedy.append(np.cumsum(reg))
+		reward_eps_greedy.append(reward)
+
+	plot_by_normal(plt, reg_UCB, "CUCB_RA", "#ff7f0e")
+	plot_by_normal(plt, reg_greedy, "Greedy", "#2ca02c")
+	plot_by_normal(plt, eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(plt, reg_gp, "CNeural_RA", "#1f77b4")
+
+	plt.title("Patient Allocation")
+	plt.xlabel("Steps")
+	plt.ylabel("Cumulative Regret")
+	plt.legend()
+	plt.tight_layout()
+	plt.savefig("out/regert_hospital_RA.png")
+
+	plt.clf()
 
 	plot_by_normal(plt, reward_UCB, "CUCB_RA", "#ff7f0e")
 	plot_by_normal(plt, reward_greedy, "Greedy", "#2ca02c")
-	plot_by_normal(plt, eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(plt, reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(plt, reward_gp, "CNeural_RA", "#1f77b4")
 	
 	plt.title("Patient Allocation")
 	plt.xlabel("Steps")
