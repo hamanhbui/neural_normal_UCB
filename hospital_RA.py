@@ -9,7 +9,7 @@ dataframe1 = pd.read_excel('data/texas_ICU_beds.xlsx')
 
 list_data = []
 for index in range(2, dataframe1.shape[1], 1): 
-	for t in range(2):    
+	for t in range(1):    
 		columnSeriesObj = dataframe1.iloc[:, index]
 		list_data.append(columnSeriesObj.values[:-1])
 	
@@ -104,7 +104,7 @@ def CNeural_RA(list_data, K, Q, T):
 		reg[t] = r_opt - sum(r)
 
 		#Update model
-		x_train, a_train, y_train = [], [], []
+		# x_train, a_train, y_train = [], [], []
 		a_train.append(a)
 		x_train.append(context)
 		y_train.append(np.array(r, dtype = np.float32))
@@ -160,28 +160,23 @@ if __name__ == "__main__":
 		eps_greedy.append(np.cumsum(reg))
 		reward_eps_greedy.append(reward)
 
-	plot_by_normal(plt, reg_UCB, "CUCB_RA", "#ff7f0e")
-	plot_by_normal(plt, reg_greedy, "Greedy", "#2ca02c")
-	plot_by_normal(plt, eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
-	plot_by_normal(plt, reg_gp, "CNeural_RA", "#1f77b4")
+	fig, axs = plt.subplots(1, 2, figsize=(11, 5))
+	plot_by_normal(axs[0], reg_UCB, "CUCB_RA", "#ff7f0e")
+	plot_by_normal(axs[0], reg_greedy, "Greedy", "#2ca02c")
+	plot_by_normal(axs[0], eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(axs[0], reg_gp, "CNeural_RA", "#1f77b4")
 
-	plt.title("Patient Allocation")
-	plt.xlabel("Steps")
-	plt.ylabel("Cumulative Regret")
-	plt.legend()
-	plt.tight_layout()
-	plt.savefig("out/regert_hospital_RA.png")
+	axs[0].set_xlabel("Steps")
+	axs[0].set_ylabel("Cumulative Regret")
+	axs[0].legend()
 
-	plt.clf()
-
-	plot_by_normal(plt, reward_UCB, "CUCB_RA", "#ff7f0e")
-	plot_by_normal(plt, reward_greedy, "Greedy", "#2ca02c")
-	plot_by_normal(plt, reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
-	plot_by_normal(plt, reward_gp, "CNeural_RA", "#1f77b4")
+	plot_by_normal(axs[1], reward_UCB, "CUCB_RA", "#ff7f0e")
+	plot_by_normal(axs[1], reward_greedy, "Greedy", "#2ca02c")
+	plot_by_normal(axs[1], reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(axs[1], reward_gp, "CNeural_RA", "#1f77b4")
 	
-	plt.title("Patient Allocation")
-	plt.xlabel("Steps")
-	plt.ylabel("Reward")
-	plt.legend()
+	axs[1].set_xlabel("Steps")
+	axs[1].set_ylabel("Reward")
+	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/reward_hospital_RA.png")
+	plt.savefig("out/hospital_RA.pdf")

@@ -1,33 +1,7 @@
-import os
-import random
-import pandas as pd
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot as plt
 import tensorflow as tf
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
-def get_data(file_name):
-	dataframe = pd.read_csv(file_name)
-	list_AP = {"Bldg3AP91": 0, "Bldg3AP92": 0, "Bldg3AP94": 0, "Bldg3AP95": 0}
-	a = 4
-	list_out = []
-	for i in range(len(dataframe)):
-		list_AP[dataframe.loc[i, 'AP']] += 1
-		if i != len(dataframe)-1:
-			str_1 = dataframe.loc[i, 'timestamp'].split(':')[0] + ":" + dataframe.loc[i, 'timestamp'].split(':')[1]
-			str_2 = dataframe.loc[i+1, 'timestamp'].split(':')[0] + ":" + dataframe.loc[i+1, 'timestamp'].split(':')[1]
-			if str_1 != str_2:
-				if list_AP["Bldg3AP91"] > a or list_AP["Bldg3AP92"] > a or list_AP["Bldg3AP94"] > a or list_AP["Bldg3AP95"] > a:
-					list_out.append([list_AP["Bldg3AP91"], list_AP["Bldg3AP92"], list_AP["Bldg3AP94"], list_AP["Bldg3AP95"]])
-				list_AP = {"Bldg3AP91": 0, "Bldg3AP92": 0, "Bldg3AP94": 0, "Bldg3AP95": 0}
-		else:
-			list_out.append([list_AP["Bldg3AP91"], list_AP["Bldg3AP92"], list_AP["Bldg3AP94"], list_AP["Bldg3AP95"]])
-
-	return np.array(list_out)
-
-list_data = get_data('data/dynamic_user_RA/out.csv')
 
 def oracle(mu, Q):
 	a = np.zeros(mu.shape[0], dtype=int) # action
@@ -40,6 +14,50 @@ def oracle(mu, Q):
 			tmp[j] = mu[j, a[j]+1] - mu[j, a[j]]
 
 	return a
+
+def greedy(list_data, list_r_opt, K, Q, T, norm_eps, epsilon):
+	reg = np.zeros(T)
+	reward = np.zeros(T)
+	mu_hat = np.zeros((K, Q+1)) # empirical mean
+	T_ka = np.zeros((K, Q+1))# total number of times arm (k,a) is played
+		
+	for t in range(T):
+		a = oracle(mu_hat, Q)
+		if np.random.random() < epsilon:
+			np.random.shuffle(a)
+		# calculate the expected reward of action a
+		r = 0
+		for i in range(K):
+			r_k = -(1/(1-(list_data[t][i]/(a[i]+1)))) * (list_data[t][i]/sum(list_data[t]))
+			r += r_k
+			T_ka[i, a[i]] += 1
+			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
+		reward[t] = r
+		# calculate regert
+		reg[t] = list_r_opt[t] - r
+	
+	return reg, reward
+
+def CUCB_RA(list_data, list_r_opt, K, Q, T, norm_eps):
+	reg = np.zeros(T)
+	reward = np.zeros(T)
+	mu_hat = np.zeros((K, Q+1)) # empirical mean
+	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
+	for t in range(T):
+		mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
+		a = oracle(mu_bar, Q)
+		# calculate the expected reward of action a
+		r = 0
+		for i in range(K):
+			r_k = -(1/(1-(list_data[t][i]/(a[i]+1)))) * (list_data[t][i]/sum(list_data[t]))
+			r += r_k
+			T_ka[i, a[i]] += 1
+			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
+		reward[t] = r
+		# calculate regert
+		reg[t] = list_r_opt[t] - r
+	
+	return reg, reward
 
 def find_r_opt(list_data, Q):
 	def sums(length, total_sum):
@@ -55,59 +73,11 @@ def find_r_opt(list_data, Q):
 	for i in range(len(list_out)):
 		tmp = 0
 		for j in range(len(list_data)):
-			tmp += 0.2*(list_data[j] + list_out[i][j]) * np.exp(-0.2*(list_data[j] + list_out[i][j]))
+			tmp += -(1/(1-(list_data[j]/(list_out[i][j]+1)))) * (list_data[j]/sum(list_data))
 		if tmp > max_tmp:
 			max_tmp = tmp
 
 	return max_tmp
-
-def greedy(list_data, list_r_opt, K, Q, T, norm_eps, epsilon):
-	reg = np.zeros(T)
-	reward = np.zeros(T)
-	mu_hat = np.zeros((K, Q+1)) # empirical mean
-	T_ka = np.zeros((K, Q+1))# total number of times arm (k,a) is played
-	for t in range(T):
-		a = oracle(mu_hat, Q)
-		if np.random.random() < epsilon:
-			np.random.shuffle(a)
-		# calculate the expected reward of action a
-		r = 0
-		for i in range(K):
-			X_k = list_data[t][i]
-			r_k = 0.2*(X_k + a[i]) * np.exp(-0.2*(X_k + a[i]))
-			r += r_k
-			T_ka[i, a[i]] += 1
-			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
-		reward[t] = r
-		# calculate regert
-		r_opt = list_r_opt[t]
-		reg[t] = r_opt - r
-	
-	return reg, reward
-
-def CUCB_RA(list_data, list_r_opt, K, Q, T, norm_eps):
-	reg = np.zeros(T)
-	reward = np.zeros(T)
-	mu_hat = np.zeros((K, Q+1)) # empirical mean
-	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
-	for t in range(T):
-		mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
-		a = oracle(mu_bar, Q)
-		# calculate the expected reward of action a
-		r = 0
-		for i in range(K):
-			X_k = list_data[t][i]
-			r_k = 0.2*(X_k + a[i]) * np.exp(-0.2*(X_k + a[i]))
-			r += r_k
-			T_ka[i, a[i]] += 1
-			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
-		reward[t] = r
-		# calculate regert
-		r_opt = list_r_opt[t]
-		reg[t] = r_opt - r
-	
-	return reg, reward
-
 
 def plot_by_normal(plt, value, label, color):
 	mean = np.mean(np.array(value), axis = 0)
@@ -123,25 +93,28 @@ if __name__ == "__main__":
 	K = 4
 	reg_UCB, reg_greedy, eps_greedy, reg_gp = [], [], [], []
 	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
-	
+
 	for i in range(N):
-		list_tmp, list_r_opt = [], []
-		for i in range(T):
-			tmp = random.choice(list_data)
-			r_opt = find_r_opt(tmp, Q)
-			list_tmp.append(tmp)
+		X_mean = np.array([0.2, 0.4, 0.6, 0.8])
+		list_data, list_r_opt = [], []
+		for t in range(T):
+			list_X_k = []
+			for j in range(K):
+				list_X_k.append(np.random.uniform(X_mean[j]-0.1, X_mean[j]+0.1))
+			r_opt = find_r_opt(list_X_k, Q)
+                
+			list_data.append(list_X_k)
 			list_r_opt.append(r_opt)
-		list_data = list_tmp
 
 		reg, reward = CUCB_RA(list_data, list_r_opt, K, Q, T, norm_eps)
 		reg_UCB.append(np.cumsum(reg))
-		reward_UCB.append(np.cumsum(reward))
+		reward_UCB.append(reward)
 		reg, reward = greedy(list_data, list_r_opt, K, Q, T, norm_eps, 0)
 		reg_greedy.append(np.cumsum(reg))
-		reward_greedy.append(np.cumsum(reward))
+		reward_greedy.append(reward)
 		reg, reward = greedy(list_data, list_r_opt, K, Q, T, norm_eps, 0.1)
 		eps_greedy.append(np.cumsum(reg))
-		reward_eps_greedy.append(np.cumsum(reward))
+		reward_eps_greedy.append(reward)
 	
 	fig, axs = plt.subplots(1, 2, figsize=(11, 5))
 	plot_by_normal(axs[0], reg_UCB, "CUCB_RA", "#ff7f0e")
@@ -151,13 +124,17 @@ if __name__ == "__main__":
 	axs[0].set_xlabel("Steps")
 	axs[0].set_ylabel("Cumulative Regret")
 	axs[0].legend()
-
+	
 	plot_by_normal(axs[1], reward_UCB, "CUCB_RA", "#ff7f0e")
 	plot_by_normal(axs[1], reward_greedy, "Greedy", "#2ca02c")
 	plot_by_normal(axs[1], reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
 	
 	axs[1].set_xlabel("Steps")
-	axs[1].set_ylabel("Cumulative Reward")
+	axs[1].set_ylabel("Reward")
 	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/dynamic_user_RA.pdf")
+	plt.savefig("out/online_SA.pdf")
+
+#Gradient Bandit Algorithms
+#Neural bandit
+#Gittins index

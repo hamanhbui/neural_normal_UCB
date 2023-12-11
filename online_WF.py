@@ -46,7 +46,7 @@ def oracle(mu, Q):
 
 	return a
 
-def greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps, epsilon):
+def greedy(list_data, list_r_opt, K, Q, T, norm_eps, epsilon):
 	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
@@ -59,24 +59,17 @@ def greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps, epsilon):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			if t < T/2:
-				X_k = np.random.uniform(X_mean[i]-0.1, X_mean[i]+0.1)
-			else:
-				X_k = np.random.uniform(X_mean_ood[i]-0.1, X_mean_ood[i]+0.1)
-			r_k = np.log(X_k + a[i] * norm_eps)
+			r_k = np.log(list_data[t][i] + a[i] * norm_eps)
 			r += r_k
 			T_ka[i, a[i]] += 1
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		if t < T/2:
-			reg[t] = r_opt - r
-		else:
-			reg[t] = r_opt_ood - r
+		reg[t] = list_r_opt[t] - r
 	
 	return reg, reward
 
-def non_stationary_greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps, epsilon):
+def non_stationary_greedy(list_data, list_r_opt, K, Q, T, norm_eps, epsilon):
 	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
@@ -88,24 +81,17 @@ def non_stationary_greedy(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_ep
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			if t < T/2:
-				X_k = np.random.uniform(X_mean[i]-0.1, X_mean[i]+0.1)
-			else:
-				X_k = np.random.uniform(X_mean_ood[i]-0.1, X_mean_ood[i]+0.1)
-			r_k = np.log(X_k + a[i] * norm_eps)
+			r_k = np.log(list_data[t][i] + a[i] * norm_eps)
 			r += r_k
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / (t+1)
 		reward[t] = r
 		# calculate regert
-		if t < T/2:
-			reg[t] = r_opt - r
-		else:
-			reg[t] = r_opt_ood - r
+		reg[t] = list_r_opt[t] - r
 	
 	return reg, reward
 
 
-def CUCB_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
+def CUCB_RA(list_data, list_r_opt, K, Q, T, norm_eps):
 	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
@@ -117,24 +103,17 @@ def CUCB_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			if t < T/2:
-				X_k = np.random.uniform(X_mean[i]-0.1, X_mean[i]+0.1)
-			else:
-				X_k = np.random.uniform(X_mean_ood[i]-0.1, X_mean_ood[i]+0.1)
-			r_k = np.log(X_k + a[i] * norm_eps)
+			r_k = np.log(list_data[t][i] + a[i] * norm_eps)
 			r += r_k
 			T_ka[i, a[i]] += 1
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		if t < T/2:
-			reg[t] = r_opt - r
-		else:
-			reg[t] = r_opt_ood - r
+		reg[t] = list_r_opt[t] - r
 	
 	return reg, reward
 
-def CUCB_density_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
+def CUCB_density_RA(list_data, list_r_opt, K, Q, T, norm_eps):
 	reg = np.zeros(T)
 	reward = np.zeros(T)
 	mu_hat = np.zeros((K, Q+1)) # empirical mean
@@ -148,54 +127,19 @@ def CUCB_density_RA(X_mean, r_opt, X_mean_ood, r_opt_ood, K, Q, T, norm_eps):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			if t < T/2:
-				X_k = np.random.uniform(X_mean[i]-0.1, X_mean[i]+0.1)
-			else:
-				X_k = np.random.uniform(X_mean_ood[i]-0.1, X_mean_ood[i]+0.1)
-			r_k = np.log(X_k + a[i] * norm_eps)
+			r_k = np.log(list_data[t][i] + a[i] * norm_eps)
 			r += r_k
 			T_ka[i, a[i]] += 1
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		if t < T/2:
-			reg[t] = r_opt - r
-		else:
-			reg[t] = r_opt_ood - r
+		reg[t] = list_r_opt[t] - r
 	
 	return reg, reward
-
-# def grad_policy(X_mean, r_opt, K, Q, T, norm_eps):
-# 	model = tf.keras.Sequential(
-#         [
-#             tf.keras.layers.Dense(units=64, activation="relu"),
-#             tf.keras.layers.Dense(units=K),
-#         ]
-#     )
-# 	optimizer = tf.keras.optimizers.SGD()
-# 	reg = np.zeros(T)
-# 	for t in range(T):
-# 		X = np.random.uniform(X_mean-0.1, X_mean+0.1)
-# 		X = np.expand_dims(X, axis=0)
-# 		with tf.GradientTape() as tape:
-# 			mu_bar = model(X, training=True)
-# 			a = oracle(mu_bar, Q)
-# 			r = tf.reduce_sum(tf.math.log(X + a))
-# 			# loss = (r_opt - r)**2
-# 			loss = -r
-# 		grads = tape.gradient(loss, model.trainable_weights)
-# 		optimizer.apply_gradients(zip(grads, model.trainable_weights))
-
-# 		# calculate regert
-# 		reg[t] = r_opt - r
-	
-# 	return reg
 
 def plot_by_normal(plt, value, label, color):
 	mean = np.mean(np.array(value), axis = 0)
 	std = np.std(np.array(value), axis = 0)
-	# mean = mean[:5000]
-	# std = std[:5000]
 	plt.fill_between(np.arange(len(mean)), mean - std, mean + std, alpha=0.3, color = color)
 	plt.plot(mean, label = label, color = color)
 
@@ -216,45 +160,55 @@ if __name__ == "__main__":
 		print('Optimal communication rate = {:.4g} '.format(prob))
 		print('Transmitter powers:\n{}'.format(x))
 		X_mean_ood = np.array([X_mean[0], X_mean[1], X_mean[2], 10])
+		# X_mean_ood = X_mean
 		stat_ood, prob_ood, x_ood = water_filling(K, X_mean_ood)
-		reg, reward = CUCB_density_RA(X_mean, prob, X_mean_ood, prob_ood, K, Q, T, norm_eps)
+		list_data, list_r_opt = [], []
+		for t in range(T):
+			tmp = []
+			for i in range(K):
+				if t < T/2:
+					X_k = np.random.uniform(X_mean[i]-0.1, X_mean[i]+0.1)
+					r_opt = prob
+				else:
+					X_k = np.random.uniform(X_mean_ood[i]-0.1, X_mean_ood[i]+0.1)
+					r_opt = prob_ood
+				tmp.append(X_k)
+			list_data.append(tmp)
+			list_r_opt.append(r_opt)
+
+		reg, reward = CUCB_density_RA(list_data, list_r_opt, K, Q, T, norm_eps)
 		reg_gp.append(np.cumsum(reg))
 		reward_gp.append(np.cumsum(reward))
-		reg, reward = CUCB_RA(X_mean, prob, X_mean_ood, prob_ood, K, Q, T, norm_eps)
+		reg, reward = CUCB_RA(list_data, list_r_opt, K, Q, T, norm_eps)
 		reg_UCB.append(np.cumsum(reg))
 		reward_UCB.append(np.cumsum(reward))
-		reg, reward = greedy(X_mean, prob, X_mean_ood, prob_ood, K, Q, T, norm_eps, 0)
+		reg, reward = greedy(list_data, list_r_opt, K, Q, T, norm_eps, 0)
 		reg_greedy.append(np.cumsum(reg))
 		reward_greedy.append(np.cumsum(reward))
-		reg, reward = greedy(X_mean, prob, X_mean_ood, prob_ood, K, Q, T, norm_eps, 0.1)
+		reg, reward = greedy(list_data, list_r_opt, K, Q, T, norm_eps, 0.1)
 		eps_greedy.append(np.cumsum(reg))
 		reward_eps_greedy.append(np.cumsum(reward))
 	
-	plot_by_normal(plt, reg_gp, "CUCB_density_RA", "#1f77b4")
-	plot_by_normal(plt, reg_UCB, "CUCB_RA", "#ff7f0e")
-	plot_by_normal(plt, reg_greedy, "Greedy", "#2ca02c")
-	plot_by_normal(plt, eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	fig, axs = plt.subplots(1, 2, figsize=(11, 5))
+	plot_by_normal(axs[0], reg_gp, "CUCB_density_RA", "#1f77b4")
+	plot_by_normal(axs[0], reg_UCB, "CUCB_RA", "#ff7f0e")
+	plot_by_normal(axs[0], reg_greedy, "Greedy", "#2ca02c")
+	plot_by_normal(axs[0], eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
 	
-	plt.title("Online Water Filling [Boyd, Convex Optimization]")
-	plt.xlabel("Steps")
-	plt.ylabel("Cumulative Regret")
-	plt.legend()
-	plt.tight_layout()
-	plt.savefig("out/regret_online_WF.png")
-	
-	plt.clf()
+	axs[0].set_xlabel("Steps")
+	axs[0].set_ylabel("Cumulative Regret")
+	axs[0].legend()
 
-	plot_by_normal(plt, reward_gp, "CUCB_density_RA", "#1f77b4")
-	plot_by_normal(plt, reward_UCB, "CUCB_RA", "#ff7f0e")
-	plot_by_normal(plt, reward_greedy, "Greedy", "#2ca02c")
-	plot_by_normal(plt, reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
+	plot_by_normal(axs[1], reward_gp, "CUCB_density_RA", "#1f77b4")
+	plot_by_normal(axs[1], reward_UCB, "CUCB_RA", "#ff7f0e")
+	plot_by_normal(axs[1], reward_greedy, "Greedy", "#2ca02c")
+	plot_by_normal(axs[1], reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
 	
-	plt.title("Online Water Filling [Boyd, Convex Optimization]")
-	plt.xlabel("Steps")
-	plt.ylabel("Cumulative Reward")
-	plt.legend()
+	axs[1].set_xlabel("Steps")
+	axs[1].set_ylabel("Cumulative Reward")
+	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/reward_online_WF.png")
+	plt.savefig("out/online_WF.pdf")
 
 #Gradient Bandit Algorithms
 #Neural bandit
