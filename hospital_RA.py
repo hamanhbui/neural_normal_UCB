@@ -7,13 +7,34 @@ import tensorflow as tf
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 dataframe1 = pd.read_excel('data/texas_ICU_beds.xlsx')
 
-list_data = []
-for index in range(2, dataframe1.shape[1], 1): 
+###1
+# list_data = []
+# for index in range(2, dataframe1.shape[1], 1): 
+# 	for t in range(1):    
+# 		columnSeriesObj = dataframe1.iloc[:, index]
+# 		list_data.append(columnSeriesObj.values[:-1])
+
+###2
+dataframe = pd.read_csv('data/out.csv')
+list_tmp = []
+for index in range(1, dataframe.shape[1], 1): 
 	for t in range(1):    
-		columnSeriesObj = dataframe1.iloc[:, index]
-		list_data.append(columnSeriesObj.values[:-1])
-	
-list_data = np.array(list_data)
+		columnSeriesObj = dataframe.iloc[:, index]
+		list_tmp.append(columnSeriesObj.values)
+
+list_data = []
+for i in range(len(list_tmp)):
+	list_data.append([])
+	for j in range(len(list_tmp[i])):
+		tmp = list_tmp[i][j].strip('][').split(', ')
+		list_data[i].append(tmp)
+
+list_data = np.array(list_data, dtype=int)
+list_tmp = list_data.reshape(list_data.shape[0], -1)
+mean = np.mean(list_tmp, axis=0)
+cov = np.cov(list_tmp, rowvar=0)
+test = np.random.multivariate_normal(mean, cov, list_data.shape[0])
+list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
 
 def oracle(mu, Q):
 	a = np.zeros(mu.shape[0], dtype=int) # action
@@ -40,7 +61,7 @@ def greedy(list_data, K, Q, T, epsilon):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			X_k = list_data[t][i]
+			X_k = list_data[t][i][4]
 			r_k = -max(0, a[i] - X_k)
 			# r_k = -np.abs(X_k - a[i])
 			r += r_k
@@ -48,7 +69,7 @@ def greedy(list_data, K, Q, T, epsilon):
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t]))
+		r_opt = -max(0, Q - sum(list_data[t][4]))
 		reg[t] = r_opt - r
 	
 	return reg, reward
@@ -65,7 +86,7 @@ def CUCB_RA(list_data, K, Q, T):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			X_k = list_data[t][i]
+			X_k = list_data[t][i][4]
 			r_k = -max(0, a[i] - X_k)
 			# r_k = -np.abs(X_k - a[i])
 			r += r_k
@@ -73,7 +94,7 @@ def CUCB_RA(list_data, K, Q, T):
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t]))
+		r_opt = -max(0, Q - sum(list_data[t][4]))
 		reg[t] = r_opt - r
 	
 	return reg, reward
@@ -90,21 +111,22 @@ def CNeural_RA(list_data, K, Q, T):
 	x_train, a_train, y_train = [], [], []
 	train_loss = np.zeros(T)
 	for t in range(T):
-		context = np.expand_dims(list_data[t], axis = 1)
+		context = list_data[t][:, :-1]
+		# context = np.expand_dims(list_data[t][:, 4], axis = 1)
 		mu_bar = model(context)
 		a = oracle(mu_bar, Q)
 		r = []
 		for i in range(K):
-			X_k = list_data[t][i]
+			X_k = list_data[t][i][4]
 			r_k = -max(0, a[i] - X_k)
 			r.append(r_k)
 		reward[t] = sum(r)
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t]))
+		r_opt = -max(0, Q - sum(list_data[t][4]))
 		reg[t] = r_opt - sum(r)
 
 		#Update model
-		# x_train, a_train, y_train = [], [], []
+		x_train, a_train, y_train = [], [], []
 		a_train.append(a)
 		x_train.append(context)
 		y_train.append(np.array(r, dtype = np.float32))
@@ -179,4 +201,4 @@ if __name__ == "__main__":
 	axs[1].set_ylabel("Reward")
 	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/hospital_RA.pdf")
+	plt.savefig("out/hospital_RA.png")
