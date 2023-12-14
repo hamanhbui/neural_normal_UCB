@@ -33,8 +33,6 @@ list_data = np.array(list_data, dtype=int)
 list_tmp = list_data.reshape(list_data.shape[0], -1)
 mean = np.mean(list_tmp, axis=0)
 cov = np.cov(list_tmp, rowvar=0)
-test = np.random.multivariate_normal(mean, cov, list_data.shape[0])
-list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
 
 def oracle(mu, Q):
 	a = np.zeros(mu.shape[0], dtype=int) # action
@@ -82,6 +80,34 @@ def CUCB_RA(list_data, K, Q, T):
 		
 	for t in range(T):
 		mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
+		a = oracle(mu_bar, Q)
+		# calculate the expected reward of action a
+		r = 0
+		for i in range(K):
+			X_k = list_data[t][i][4]
+			r_k = -max(0, a[i] - X_k)
+			# r_k = -np.abs(X_k - a[i])
+			r += r_k
+			T_ka[i, a[i]] += 1
+			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
+		reward[t] = r
+		# calculate regert
+		r_opt = -max(0, Q - sum(list_data[t][4]))
+		reg[t] = r_opt - r
+	
+	return reg, reward
+
+def Density_CUCB_RA(list_data, K, Q, T):
+	reg = np.zeros(T)
+	reward = np.zeros(T)
+	mu_hat = np.zeros((K, Q+1)) # empirical mean
+	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
+		
+	for t in range(T):
+		if t >= T/2 and t <= T/2 + 5:
+			mu_bar = mu_hat + 1*np.sqrt(3*np.log(t+1)/(2*T_ka))
+		else:
+			mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
 		a = oracle(mu_bar, Q)
 		# calculate the expected reward of action a
 		r = 0
@@ -161,15 +187,28 @@ def plot_by_normal(plt, value, label, color):
 	plt.plot(mean, label = label, color = color)
 
 if __name__ == "__main__":
-	N = 1
+	N = 10
 	Q = 500
-	T = list_data.shape[0]
+	T = 1000
 	K = list_data.shape[1]
 	reg_UCB, reg_greedy, eps_greedy, reg_gp = [], [], [], []
 	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
 
 	for i in range(N):
-		reg, reward = CNeural_RA(list_data, K, Q, T)
+		test = np.random.multivariate_normal(mean, np.ones(cov.shape) * 0.1, int(T/2))
+		list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
+
+		mean_ood = np.copy(mean)
+		mean_ood = mean_ood.reshape(list_data.shape[1], list_data.shape[2])
+		np.random.shuffle(mean_ood)
+		mean_ood = mean_ood.reshape(list_data.shape[1] * list_data.shape[2])
+		test_ood = np.random.multivariate_normal(mean_ood, np.ones(cov.shape) * 0.1, int(T/2))
+		# test_ood = np.random.multivariate_normal(mean_ood, cov, int(T/2))
+		list_data_ood = test_ood.reshape(test_ood.shape[0], list_data.shape[1], list_data.shape[2])
+		list_data = np.concatenate((list_data, list_data_ood))
+
+		# reg, reward = CNeural_RA(list_data, K, Q, T)
+		reg, reward = Density_CUCB_RA(list_data, K, Q, T)
 		reg_gp.append(np.cumsum(reg))
 		reward_gp.append(reward)
 		reg, reward = CUCB_RA(list_data, K, Q, T)
@@ -186,7 +225,8 @@ if __name__ == "__main__":
 	plot_by_normal(axs[0], reg_UCB, "CUCB_RA", "#ff7f0e")
 	plot_by_normal(axs[0], reg_greedy, "Greedy", "#2ca02c")
 	plot_by_normal(axs[0], eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
-	plot_by_normal(axs[0], reg_gp, "CNeural_RA", "#1f77b4")
+	# plot_by_normal(axs[0], reg_gp, "CNeural_RA", "#1f77b4")
+	plot_by_normal(axs[0], reg_gp, "DUCB_RA", "#1f77b4")
 
 	axs[0].set_xlabel("Steps")
 	axs[0].set_ylabel("Cumulative Regret")
@@ -195,7 +235,8 @@ if __name__ == "__main__":
 	plot_by_normal(axs[1], reward_UCB, "CUCB_RA", "#ff7f0e")
 	plot_by_normal(axs[1], reward_greedy, "Greedy", "#2ca02c")
 	plot_by_normal(axs[1], reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
-	plot_by_normal(axs[1], reward_gp, "CNeural_RA", "#1f77b4")
+	# plot_by_normal(axs[1], reward_gp, "CNeural_RA", "#1f77b4")
+	plot_by_normal(axs[1], reward_gp, "DUCB_RA", "#1f77b4")
 	
 	axs[1].set_xlabel("Steps")
 	axs[1].set_ylabel("Reward")

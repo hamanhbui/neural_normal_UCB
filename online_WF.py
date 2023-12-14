@@ -120,9 +120,10 @@ def CUCB_density_RA(list_data, list_r_opt, K, Q, T, norm_eps):
 	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
 		
 	for t in range(T):
-		mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
 		if t >= T/2 and t <= T/2 + 5:
-			mu_bar[3] = mu_hat[3] + 0.2*np.sqrt(3*np.log(t+1)/(2*T_ka[3]))
+			mu_bar = mu_hat + 0.2*np.sqrt(3*np.log(t+1)/(2*T_ka))
+		else:
+			mu_bar = mu_hat + 0.1*np.sqrt(3*np.log(t+1)/(2*T_ka))
 		a = oracle(mu_bar, Q)
 		# calculate the expected reward of action a
 		r = 0
