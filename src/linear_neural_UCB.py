@@ -66,6 +66,13 @@ class Bandit_multi:
 	def reset(self):
 		self.cursor = 0
 
+def inv_sherman_morrison(u, A_inv):
+	"""Inverse of a matrix with rank 1 update.
+	"""
+	Au = np.dot(A_inv, u)
+	A_inv -= np.outer(Au, Au)/(1+np.dot(u.T, Au))
+	return A_inv
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -75,33 +82,30 @@ class Network(nn.Module):
 		super(Network, self).__init__()
 		self.fc1 = nn.Linear(dim, hidden_size)
 		self.activate = nn.ReLU()
-		self.fc2 = nn.Linear(hidden_size, 2)
-
+		self.fc2 = nn.Linear(hidden_size, 63)
 	def forward(self, x):
 		return self.fc2(self.activate(self.fc1(x)))
 
-class NeuralUCBDiag:
+class NeuralLinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
-		self.T = 1
-		self.n_arm = torch.ones(7) * 2
+		self.theta = np.random.uniform(-1, 1, (7, dim))
+		self.b = np.zeros((7, dim))
+		self.A_inv = np.array([np.eye(dim) for _ in range(7)])
 
 	def select(self, context):
-		self.T += 1
 		tensor = torch.from_numpy(context).float().cuda()
-		output = self.func(tensor)
-		mu, logsigma = output[:, 0], output[:, 1]
-		# sampled = mu + torch.sqrt((np.log(self.T)/self.n_arm).cuda() *  torch.min(torch.ones(7).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.n_arm).cuda()))
-		sampled = mu + torch.sqrt(16 * ((self.n_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.n_arm-1).cuda()) * (np.log(self.T - 1)/self.n_arm).cuda())
-		arm = np.argmax(sampled.cpu().detach().numpy())
-		self.n_arm[arm] += 1
+		features = self.func(tensor).cpu().detach().numpy()
+		ucb = np.array([np.sqrt(np.dot(features[a,:], np.dot(self.A_inv[a], features[a,:].T))) for a in range(7)])
+		mu = np.array([np.dot(features[a,:], self.theta[a]) for a in range(7)])
+		arm = np.argmax(mu + ucb)
 		return arm
 
-	def train(self, context, reward):
-		self.context_list.append(torch.from_numpy(context.reshape(1, -1)).float())
+	def train(self, context, arm_select, reward):
+		self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
 		self.reward.append(reward)
 		optimizer = optim.SGD(self.func.parameters(), lr=1e-2, weight_decay=self.lamdba)
 		length = len(self.reward)
@@ -115,13 +119,10 @@ class NeuralUCBDiag:
 				c = self.context_list[idx]
 				r = self.reward[idx]
 				optimizer.zero_grad()
-
-				output = self.func(c.cuda())
-				mu, logsigma = output[:, 0], output[:, 1]
-				# logprob = -logsigma - 0.5*np.log(2*np.pi) - 0.5*((r-mu)/torch.exp(logsigma))**2
-				# loss = -logprob
-				loss = 2 * logsigma + ((r - mu) / torch.exp(logsigma)) ** 2
-
+				features = self.func(c.cuda())
+				mu = torch.matmul(features, torch.from_numpy(self.theta[arm_select]).float().cuda())
+				delta = mu - r
+				loss = delta * delta
 				loss.backward()
 				optimizer.step()
 				batch_loss += loss.item()
@@ -131,6 +132,13 @@ class NeuralUCBDiag:
 					return tot_loss / 1000
 			if batch_loss / length <= 1e-3:
 				return batch_loss / length
+
+	def update_model(self, context, arm_select, reward):
+		tensor = torch.from_numpy(context).float().cuda()
+		context = self.func(tensor).cpu().detach().numpy()
+		self.theta = np.array([np.matmul(self.A_inv[a], self.b[a]) for a in range(7)])
+		self.b[arm_select] += context[arm_select] * reward[arm_select]
+		self.A_inv[arm_select] = inv_sherman_morrison(context[arm_select,:],self.A_inv[arm_select])
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='NeuralUCB')
@@ -147,8 +155,8 @@ if __name__ == '__main__':
 	use_seed = None if args.seed == 0 else args.seed
 	b = Bandit_multi(args.dataset, is_shuffle=args.shuffle, seed=use_seed)
 	bandit_info = '{}'.format(args.dataset)
-	l = NeuralUCBDiag(b.dim, args.lamdba, args.nu, args.hidden)
-	ucb_info = '_{:.3e}_{:.3e}_{}'.format(args.lamdba, args.nu, args.hidden)
+	l = NeuralLinearUCB(b.dim, args.lamdba, args.nu, args.hidden)
+	ucb_info = '_{:.3e}_{:.3e}'.format(args.lamdba, args.nu)
 
 	regrets = []
 	summ = 0
@@ -158,16 +166,17 @@ if __name__ == '__main__':
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
+		l.update_model(context, arm_select, rwd)
 		if t<2000:
-			loss = l.train(context[arm_select], r)
+			loss = l.train(context, arm_select, r)
 		else:
 			if t%100 == 0:
-				loss = l.train(context[arm_select], r)
+				loss = l.train(context, arm_select, r)
 		regrets.append(summ)
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
-		
-	path = "neural_MLE"
+	   
+	path = "linear_neural_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

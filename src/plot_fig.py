@@ -1,41 +1,29 @@
 import matplotlib.pyplot as plt
 
-# Using readlines()
-file1 = open('linear_UCB', 'r')
-Lines = file1.readlines()
+def get_regret(filename):
+    # Using readlines()
+    file1 = open(filename, 'r')
+    Lines = file1.readlines()
 
-linear_regret = []
-count = 0
-# Strips the newline character
-for line in Lines:
-    count += 1
-    linear_regret.append(float(line.strip()))
+    regret_list = []
+    count = 0
+    # Strips the newline character
+    for line in Lines:
+        count += 1
+        regret_list.append(float(line.strip()))
+    
+    return regret_list
 
-# Using readlines()
-file1 = open('neural_UCB', 'r')
-Lines = file1.readlines()
 
-neural_regret = []
-count = 0
-# Strips the newline character
-for line in Lines:
-    count += 1
-    neural_regret.append(float(line.strip()))
-
-# Using readlines()
-file1 = open('neural_MLE', 'r')
-Lines = file1.readlines()
-
-ours_regret = []
-count = 0
-# Strips the newline character
-for line in Lines:
-    count += 1
-    ours_regret.append(float(line.strip()))
+linear_regret = get_regret('out/logs/linear_UCB')
+neural_regret = get_regret('out/logs/neural_UCB')
+linear_neural_regret = get_regret('out/logs/linear_neural_UCB')
+ours_regret = get_regret('out/logs/neural_MLE')
 
 plt.plot(linear_regret, label = "Linear_UCB")
 plt.plot(neural_regret, label = "Neural_UCB")
+plt.plot(linear_neural_regret, label = "Linear_Neural_UCB")
 plt.plot(ours_regret, label = "Neural_MLE")
 plt.legend()
 plt.tight_layout()
-plt.savefig("out.png")
+plt.savefig("out/out.png")
