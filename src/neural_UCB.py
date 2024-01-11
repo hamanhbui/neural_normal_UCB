@@ -144,7 +144,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='NeuralUCB')
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
+	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
@@ -175,7 +175,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}, {:.3e}, {:.3e}, {:.3e}'.format(t, summ, loss, nrm, sig, ave_rwd))
 	
-	path = "neural_UCB"
+	path = "out/logs/mnist/neural_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

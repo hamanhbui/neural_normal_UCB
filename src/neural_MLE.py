@@ -82,22 +82,24 @@ class Network(nn.Module):
 
 class NeuralUCBDiag:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
+		self.n_arm = 7
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
 		self.T = 1
-		self.n_arm = torch.ones(7) * 2
+		self.base_arm = torch.ones(self.n_arm) * 2
 
 	def select(self, context):
 		self.T += 1
 		tensor = torch.from_numpy(context).float().cuda()
 		output = self.func(tensor)
 		mu, logsigma = output[:, 0], output[:, 1]
-		# sampled = mu + torch.sqrt((np.log(self.T)/self.n_arm).cuda() *  torch.min(torch.ones(7).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.n_arm).cuda()))
-		sampled = mu + torch.sqrt(16 * ((self.n_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.n_arm-1).cuda()) * (np.log(self.T - 1)/self.n_arm).cuda())
+		# sampled = mu + torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
+		# sampled = mu + torch.sqrt(16 * ((self.base_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.base_arm-1).cuda()) * (np.log(self.T - 1)/self.base_arm).cuda())
+		sampled = mu + torch.exp(logsigma)
 		arm = np.argmax(sampled.cpu().detach().numpy())
-		self.n_arm[arm] += 1
+		self.base_arm[arm] += 1
 		return arm
 
 	def train(self, context, reward):
@@ -132,6 +134,16 @@ class NeuralUCBDiag:
 			if batch_loss / length <= 1e-3:
 				return batch_loss / length
 
+	def update_model(self, context, arm_select, reward):
+		optimizer = optim.Adam(self.func.fc2.parameters())
+		tensor = torch.from_numpy(context[arm_select]).float().cuda()
+		optimizer.zero_grad()
+		output = self.func(tensor)
+		mu, logsigma = output[0], output[1]
+		loss = 2 * logsigma + ((reward[arm_select] - mu) / torch.exp(logsigma)) ** 2
+		loss.backward()
+		optimizer.step()
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='NeuralUCB')
 
@@ -158,6 +170,7 @@ if __name__ == '__main__':
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
+		l.update_model(context, arm_select, rwd)
 		if t<2000:
 			loss = l.train(context[arm_select], r)
 		else:
@@ -167,7 +180,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 		
-	path = "neural_MLE"
+	path = "out/logs/shuttle/neural_MLE_2"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

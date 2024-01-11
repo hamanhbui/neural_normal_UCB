@@ -15,15 +15,20 @@ def get_regret(filename):
     return regret_list
 
 
-linear_regret = get_regret('out/logs/linear_UCB')
-neural_regret = get_regret('out/logs/neural_UCB')
-linear_neural_regret = get_regret('out/logs/linear_neural_UCB')
-ours_regret = get_regret('out/logs/neural_MLE')
+linear_regret = get_regret('out/logs/shuttle/linear_UCB')
+neural_regret = get_regret('out/logs/shuttle/neural_UCB')
+linear_neural_regret = get_regret('out/logs/shuttle/linear_neural_UCB')
+ours_regret_log = get_regret('out/logs/shuttle/neural_MLE')
 
 plt.plot(linear_regret, label = "Linear_UCB")
 plt.plot(neural_regret, label = "Neural_UCB")
 plt.plot(linear_neural_regret, label = "Linear_Neural_UCB")
-plt.plot(ours_regret, label = "Neural_MLE")
+plt.plot(ours_regret_log, label = "Neural_MLE")
+plt.xlabel("Steps")
+plt.ylabel("Cumulative regret")
+plt.title("Results on UCI (statlog)")
+# plt.title("Results on MNIST")
+
 plt.legend()
 plt.tight_layout()
 plt.savefig("out/out.png")

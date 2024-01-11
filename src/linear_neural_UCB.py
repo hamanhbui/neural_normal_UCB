@@ -82,25 +82,26 @@ class Network(nn.Module):
 		super(Network, self).__init__()
 		self.fc1 = nn.Linear(dim, hidden_size)
 		self.activate = nn.ReLU()
-		self.fc2 = nn.Linear(hidden_size, 63)
+		self.fc2 = nn.Linear(hidden_size, 7840)
 	def forward(self, x):
 		return self.fc2(self.activate(self.fc1(x)))
 
 class NeuralLinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
+		self.n_arm = 10
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
-		self.theta = np.random.uniform(-1, 1, (7, dim))
-		self.b = np.zeros((7, dim))
-		self.A_inv = np.array([np.eye(dim) for _ in range(7)])
+		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
+		self.b = np.zeros((self.n_arm, dim))
+		self.A_inv = np.array([np.eye(dim) for _ in range(self.n_arm)])
 
 	def select(self, context):
 		tensor = torch.from_numpy(context).float().cuda()
 		features = self.func(tensor).cpu().detach().numpy()
-		ucb = np.array([np.sqrt(np.dot(features[a,:], np.dot(self.A_inv[a], features[a,:].T))) for a in range(7)])
-		mu = np.array([np.dot(features[a,:], self.theta[a]) for a in range(7)])
+		ucb = np.array([np.sqrt(np.dot(features[a,:], np.dot(self.A_inv[a], features[a,:].T))) for a in range(self.n_arm)])
+		mu = np.array([np.dot(features[a,:], self.theta[a]) for a in range(self.n_arm)])
 		arm = np.argmax(mu + ucb)
 		return arm
 
@@ -136,7 +137,7 @@ class NeuralLinearUCB:
 	def update_model(self, context, arm_select, reward):
 		tensor = torch.from_numpy(context).float().cuda()
 		context = self.func(tensor).cpu().detach().numpy()
-		self.theta = np.array([np.matmul(self.A_inv[a], self.b[a]) for a in range(7)])
+		self.theta = np.array([np.matmul(self.A_inv[a], self.b[a]) for a in range(self.n_arm)])
 		self.b[arm_select] += context[arm_select] * reward[arm_select]
 		self.A_inv[arm_select] = inv_sherman_morrison(context[arm_select,:],self.A_inv[arm_select])
 
@@ -144,7 +145,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='NeuralUCB')
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
+	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
@@ -176,7 +177,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "linear_neural_UCB"
+	path = "out/logs/mnist/linear_neural_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
