@@ -1,1 +1,1 @@
-# CMAB_RA
+# neural_normal_UCB
