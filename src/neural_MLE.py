@@ -7,6 +7,8 @@ import argparse
 import pickle
 import os
 import time
+import matplotlib.pyplot as plt
+from torch.utils.data import TensorDataset, DataLoader
 
 class Bandit_multi:
 	def __init__(self, name, is_shuffle=True, seed=None):
@@ -84,6 +86,7 @@ class NeuralUCBDiag:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
 		self.n_arm = 7
 		self.func = Network(dim, hidden_size=hidden).cuda()
+		# self.func.load_state_dict(torch.load("out.pth"))
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
@@ -95,51 +98,91 @@ class NeuralUCBDiag:
 		tensor = torch.from_numpy(context).float().cuda()
 		output = self.func(tensor)
 		mu, logsigma = output[:, 0], output[:, 1]
-		# sampled = mu + torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
+
+		sampled = mu + self.lamdba * torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
 		# sampled = mu + torch.sqrt(16 * ((self.base_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.base_arm-1).cuda()) * (np.log(self.T - 1)/self.base_arm).cuda())
-		sampled = mu + torch.exp(logsigma)
+		# sampled = mu + self.lamdba * torch.exp(logsigma)
 		arm = np.argmax(sampled.cpu().detach().numpy())
 		self.base_arm[arm] += 1
 		return arm
 
 	def train(self, context, reward):
+		# return 0
 		self.context_list.append(torch.from_numpy(context.reshape(1, -1)).float())
 		self.reward.append(reward)
 		optimizer = optim.SGD(self.func.parameters(), lr=1e-2, weight_decay=self.lamdba)
-		length = len(self.reward)
-		index = np.arange(length)
-		np.random.shuffle(index)
-		cnt = 0
-		tot_loss = 0
+		# length = len(self.reward)
+		# index = np.arange(length)
+		# np.random.shuffle(index)
+		# cnt = 0
+		# tot_loss = 0
+		train_set = []
+		for idx in range(len(self.context_list)):
+			train_set.append((self.context_list[idx], self.reward[idx]))
+		train_loader = DataLoader(train_set, batch_size = 16, shuffle = True)
+		total_step = len(train_loader)
+		epoch = 0
+		ite = 0
 		while True:
 			batch_loss = 0
-			for idx in index:
-				c = self.context_list[idx]
-				r = self.reward[idx]
+			for batch_idx, (samples, labels) in enumerate(train_loader):
+				samples = samples.reshape(samples.shape[0] * samples.shape[1], samples.shape[2]).float().cuda()
+				labels = labels.reshape(labels.shape[0], 1).cuda()
 				optimizer.zero_grad()
-
-				output = self.func(c.cuda())
+				output = self.func(samples.cuda())
 				mu, logsigma = output[:, 0], output[:, 1]
-				# logprob = -logsigma - 0.5*np.log(2*np.pi) - 0.5*((r-mu)/torch.exp(logsigma))**2
-				# loss = -logprob
-				loss = 2 * logsigma + ((r - mu) / torch.exp(logsigma)) ** 2
+				mu = mu.reshape(mu.shape[0], 1)
+				logsigma = logsigma.reshape(logsigma.shape[0], 1)
 
+				loss = torch.mean(2 * logsigma + ((labels - mu) / torch.exp(logsigma)) ** 2)
+				
 				loss.backward()
 				optimizer.step()
 				batch_loss += loss.item()
-				tot_loss += loss.item()
-				cnt += 1
-				if cnt >= 1000:
-					return tot_loss / 1000
-			if batch_loss / length <= 1e-3:
-				return batch_loss / length
+				ite += 1
+				#HERE
+				if ite >= 500:
+					return batch_loss/total_step
+			
+		# while True:
+		# 	batch_loss = 0
+		# 	for idx in index:
+		# 		c = self.context_list[idx]
+		# 		r = self.reward[idx]
+		# 		optimizer.zero_grad()
+
+		# 		output = self.func(c.cuda())
+		# 		mu, logsigma = output[:, 0], output[:, 1]
+		# 		mu = mu.reshape(mu.shape[0], 1)
+		# 		logsigma = logsigma.reshape(logsigma.shape[0], 1)
+
+		# 		# logprob = -logsigma - 0.5*np.log(2*np.pi) - 0.5*((r-mu)/torch.exp(logsigma))**2
+		# 		# loss = -logprob
+		# 		if length >= 2000:
+		# 			loss = torch.mean(2 * logsigma + ((r - mu) / torch.exp(logsigma)) ** 2)
+		# 		else:
+		# 			loss = torch.mean((r - mu) ** 2)
+
+		# 		loss.backward()
+		# 		optimizer.step()
+		# 		batch_loss += loss.item()
+		# 		tot_loss += loss.item()
+		# 		cnt += 1
+		# 		if cnt >= 1000:
+		# 			return tot_loss / 1000
+		# 	if batch_loss / length <= 1e-3:
+		# 		return batch_loss / length
 
 	def update_model(self, context, arm_select, reward):
+		# self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
+		# self.reward.append(reward[arm_select])
+		# return
 		optimizer = optim.Adam(self.func.fc2.parameters())
 		tensor = torch.from_numpy(context[arm_select]).float().cuda()
 		optimizer.zero_grad()
 		output = self.func(tensor)
 		mu, logsigma = output[0], output[1]
+		# loss = (reward[arm_select] - mu) ** 2
 		loss = 2 * logsigma + ((reward[arm_select] - mu) / torch.exp(logsigma)) ** 2
 		loss.backward()
 		optimizer.step()
@@ -170,17 +213,19 @@ if __name__ == '__main__':
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
-		l.update_model(context, arm_select, rwd)
+		# l.update_model(context, arm_select, rwd)
 		if t<2000:
 			loss = l.train(context[arm_select], r)
 		else:
 			if t%100 == 0:
 				loss = l.train(context[arm_select], r)
+			# else:
+			# 	l.update_model(context, arm_select, rwd)
 		regrets.append(summ)
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
-		
-	path = "out/logs/shuttle/neural_MLE_2"
+
+	path = "out/logs/shuttle/neural_MLE"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
