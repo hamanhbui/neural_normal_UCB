@@ -15,7 +15,7 @@ dataframe1 = pd.read_excel('data/texas_ICU_beds.xlsx')
 # 		list_data.append(columnSeriesObj.values[:-1])
 
 ###2
-dataframe = pd.read_csv('data/out.csv')
+dataframe = pd.read_csv('data/test.csv')
 list_tmp = []
 for index in range(1, dataframe.shape[1], 1): 
 	for t in range(1):    
@@ -29,7 +29,7 @@ for i in range(len(list_tmp)):
 		tmp = list_tmp[i][j].strip('][').split(', ')
 		list_data[i].append(tmp)
 
-list_data = np.array(list_data, dtype=int)
+list_data = np.array(list_data, dtype=float)
 list_tmp = list_data.reshape(list_data.shape[0], -1)
 mean = np.mean(list_tmp, axis=0)
 cov = np.cov(list_tmp, rowvar=0)
@@ -59,7 +59,7 @@ def greedy(list_data, K, Q, T, epsilon):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			X_k = list_data[t][i][4]
+			X_k = list_data[t][i][8]
 			r_k = -max(0, a[i] - X_k)
 			# r_k = -np.abs(X_k - a[i])
 			r += r_k
@@ -67,7 +67,7 @@ def greedy(list_data, K, Q, T, epsilon):
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t][4]))
+		r_opt = -max(0, Q - sum(list_data[t][:,8]))
 		reg[t] = r_opt - r
 	
 	return reg, reward
@@ -84,7 +84,7 @@ def CUCB_RA(list_data, K, Q, T):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			X_k = list_data[t][i][4]
+			X_k = list_data[t][i][8]
 			r_k = -max(0, a[i] - X_k)
 			# r_k = -np.abs(X_k - a[i])
 			r += r_k
@@ -92,7 +92,7 @@ def CUCB_RA(list_data, K, Q, T):
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t][4]))
+		r_opt = -max(0, Q - sum(list_data[t][:,8]))
 		reg[t] = r_opt - r
 	
 	return reg, reward
@@ -112,7 +112,7 @@ def Density_CUCB_RA(list_data, K, Q, T):
 		# calculate the expected reward of action a
 		r = 0
 		for i in range(K):
-			X_k = list_data[t][i][4]
+			X_k = list_data[t][i][8]
 			r_k = -max(0, a[i] - X_k)
 			# r_k = -np.abs(X_k - a[i])
 			r += r_k
@@ -120,7 +120,7 @@ def Density_CUCB_RA(list_data, K, Q, T):
 			mu_hat[i, a[i]] += (r_k - mu_hat[i, a[i]]) / T_ka[i, a[i]]
 		reward[t] = r
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t][4]))
+		r_opt = -max(0, Q - sum(list_data[t][:,8]))
 		reg[t] = r_opt - r
 	
 	return reg, reward
@@ -131,7 +131,9 @@ def CNeural_RA(list_data, K, Q, T):
 	T_ka = np.ones((K, Q+1))# total number of times arm (k,a) is played
 	metrics = {'nll': tf.keras.metrics.Mean()}
 	model = tf.keras.Sequential([
-		# tf.keras.layers.Dense(32, activation="relu"),
+		tf.keras.layers.Dense(64, activation="relu"),
+		tf.keras.layers.Dense(64, activation="relu"),
+		tf.keras.layers.Dense(64, activation="relu"),
 		tf.keras.layers.Dense(Q+1),
 	])
 	optimizer = tf.keras.optimizers.Adam()
@@ -145,13 +147,13 @@ def CNeural_RA(list_data, K, Q, T):
 		a = oracle(mu_bar, Q)
 		r = []
 		for i in range(K):
-			X_k = list_data[t][i][4]
+			X_k = list_data[t][i][8]
 			r_k = -max(0, a[i] - X_k)
 			r.append(r_k)
 			T_ka[i, a[i]] += 1
 		reward[t] = sum(r)
 		# calculate regert
-		r_opt = -max(0, Q - sum(list_data[t][4]))
+		r_opt = -max(0, Q - sum(list_data[t][:,8]))
 		reg[t] = r_opt - sum(r)
 
 		#Update model
@@ -160,6 +162,7 @@ def CNeural_RA(list_data, K, Q, T):
 		x_train.append(context)
 		y_train.append(np.array(r, dtype = np.float32))
 		train_dataset = tf.data.Dataset.from_tensor_slices((x_train, a_train, y_train))
+		# train_dataset = train_dataset.shuffle(32).batch(32)
 
 		for step, (x_batch_train, a_batch_train, y_batch_train) in enumerate(train_dataset):
 			with tf.GradientTape() as tape:
@@ -176,6 +179,8 @@ def CNeural_RA(list_data, K, Q, T):
 		train_loss[t] = metrics['nll'].result()
 		for metric in metrics.values():
 			metric.reset_states()
+		
+		print(t)
 
 	plt.plot(train_loss)
 	plt.savefig("out/train_loss.png")
@@ -190,16 +195,16 @@ def plot_by_normal(plt, value, label, color):
 	plt.plot(mean, label = label, color = color)
 
 if __name__ == "__main__":
-	N = 5
-	Q = 500
-	T = 500
+	N = 1
+	Q = 2000
+	T = list_data.shape[0]
 	K = list_data.shape[1]
 	reg_UCB, reg_greedy, eps_greedy, reg_gp = [], [], [], []
 	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
 
 	for i in range(N):
-		test = np.random.multivariate_normal(mean, cov, T)
-		list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
+		# test = np.random.multivariate_normal(mean, cov, T)
+		# list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
 
 		# mean_ood = np.copy(mean)
 		# mean_ood = mean_ood.reshape(list_data.shape[1], list_data.shape[2])
@@ -245,4 +250,4 @@ if __name__ == "__main__":
 	axs[1].set_ylabel("Reward")
 	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/hospital_RA_3.png")
+	plt.savefig("out/hospital_RA.png")
