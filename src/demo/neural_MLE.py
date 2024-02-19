@@ -44,7 +44,7 @@ class NeuralUCBDiag:
 		mu, logsigma = output[:, 0], output[:, 1]
 		
 		UCB = torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
-		sampled = mu + self.lamdba * UCB
+		sampled = mu + UCB
 		arm = np.argmax(sampled.cpu().detach().numpy())
 		self.base_arm[arm] += 1
 		return arm, logsigma, UCB

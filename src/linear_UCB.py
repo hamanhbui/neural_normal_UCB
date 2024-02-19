@@ -76,6 +76,7 @@ def inv_sherman_morrison(u, A_inv):
 class LinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1):
 		self.n_arm = 10
+		self.lamdba = lamdba
 		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
 		self.b = np.zeros((self.n_arm, dim))
 		self.A_inv = np.array([np.eye(dim) for _ in range(self.n_arm)])
@@ -83,7 +84,7 @@ class LinearUCB:
 	def select(self, context):
 		ucb = np.array([np.sqrt(np.dot(context[a,:], np.dot(self.A_inv[a], context[a,:].T))) for a in range(self.n_arm)])
 		mu = np.array([np.dot(context[a,:], self.theta[a]) for a in range(self.n_arm)])
-		arm = np.argmax(mu + ucb)
+		arm = np.argmax(mu + self.lamdba * ucb)
 		return arm
 
 	def train(self, context, arm_select, reward):
@@ -93,7 +94,7 @@ class LinearUCB:
 
 if __name__ == '__main__':
 	#python3 train.py --nu 0.00001 --lamdba 0.00001 --dataset mnist
-	parser = argparse.ArgumentParser(description='NeuralUCB')
+	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')

@@ -141,7 +141,7 @@ class NeuralUCBDiag:
 				return batch_loss / length
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description='NeuralUCB')
+	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')

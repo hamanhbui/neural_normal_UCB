@@ -8,63 +8,9 @@ import pickle
 import os
 import time
 
-class Bandit_multi:
-	def __init__(self, name, is_shuffle=True, seed=None):
-		# Fetch data
-		if name == 'mnist':
-			X, y = fetch_openml('mnist_784', version=1, return_X_y=True)
-			# avoid nan, set nan as -1
-			X[np.isnan(X)] = - 1
-			X = normalize(X)
-		elif name == 'covertype':
-			X, y = fetch_openml('covertype', version=3, return_X_y=True)
-			# avoid nan, set nan as -1
-			X[np.isnan(X)] = - 1
-			X = normalize(X)
-		elif name == 'MagicTelescope':
-			X, y = fetch_openml('MagicTelescope', version=1, return_X_y=True)
-			# avoid nan, set nan as -1
-			X[np.isnan(X)] = - 1
-			X = normalize(X)
-		elif name == 'shuttle':
-			X, y = fetch_openml('shuttle', version=1, return_X_y=True)
-			# avoid nan, set nan as -1
-			X[np.isnan(X)] = - 1
-			X = normalize(X)
-		else:
-			raise RuntimeError('Dataset does not exist')
-		# Shuffle data
-		if is_shuffle:
-			self.X, self.y = shuffle(X, y, random_state=seed)
-		else:
-			self.X, self.y = X, y
-		# generate one_hot coding:
-		self.y_arm = OrdinalEncoder(
-			dtype=int).fit_transform(self.y.values.reshape((-1, 1)))
-		# cursor and other variables
-		self.cursor = 0
-		self.size = self.y.shape[0]
-		self.n_arm = np.max(self.y_arm) + 1
-		self.dim = self.X.shape[1] * self.n_arm
-		self.act_dim = self.X.shape[1]
-
-	def step(self):
-		assert self.cursor < self.size
-		X = np.zeros((self.n_arm, self.dim))
-		for a in range(self.n_arm):
-			X[a, a * self.act_dim:a * self.act_dim +
-				self.act_dim] = self.X[self.cursor]
-		arm = self.y_arm[self.cursor][0]
-		rwd = np.zeros((self.n_arm,))
-		rwd[arm] = 1
-		self.cursor += 1
-		return X, rwd
-
-	def finish(self):
-		return self.cursor == self.size
-
-	def reset(self):
-		self.cursor = 0
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 def inv_sherman_morrison(u, A_inv):
 	"""Inverse of a matrix with rank 1 update.
@@ -73,22 +19,18 @@ def inv_sherman_morrison(u, A_inv):
 	A_inv -= np.outer(Au, Au)/(1+np.dot(u.T, Au))
 	return A_inv
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
 class Network(nn.Module):
 	def __init__(self, dim, hidden_size=100):
 		super(Network, self).__init__()
 		self.fc1 = nn.Linear(dim, hidden_size)
 		self.activate = nn.ReLU()
-		self.fc2 = nn.Linear(hidden_size, 7840)
+		self.fc2 = nn.Linear(hidden_size, 20)
 	def forward(self, x):
 		return self.fc2(self.activate(self.fc1(x)))
 
 class NeuralLinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
-		self.n_arm = 10
+		self.n_arm = 4
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
 		self.reward = []
@@ -100,9 +42,8 @@ class NeuralLinearUCB:
 	def select(self, context):
 		tensor = torch.from_numpy(context).float().cuda()
 		features = self.func(tensor).cpu().detach().numpy()
-		ucb = np.array([np.sqrt(np.dot(features[a,:], np.dot(self.A_inv[a], features[a,:].T))) for a in range(self.n_arm)])
 		mu = np.array([np.dot(features[a,:], self.theta[a]) for a in range(self.n_arm)])
-		arm = np.argmax(mu + ucb)
+		arm = np.argmax(mu)
 		return arm
 
 	def train(self, context, arm_select, reward):
@@ -141,10 +82,16 @@ class NeuralLinearUCB:
 		self.b[arm_select] += context[arm_select] * reward[arm_select]
 		self.A_inv[arm_select] = inv_sherman_morrison(context[arm_select,:],self.A_inv[arm_select])
 
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
+	with open ('contexts', 'rb') as fp:
+		contexts = pickle.load(fp)
 
-	parser.add_argument('--size', default=15000, type=int, help='bandit size')
+	with open ('rewards', 'rb') as fp:
+		rewards = pickle.load(fp)
+
+	parser.add_argument('--size', default=10000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
@@ -153,16 +100,13 @@ if __name__ == '__main__':
 	parser.add_argument('--hidden', type=int, default=100, help='network hidden size')
 
 	args = parser.parse_args()
-	use_seed = None if args.seed == 0 else args.seed
-	b = Bandit_multi(args.dataset, is_shuffle=args.shuffle, seed=use_seed)
-	bandit_info = '{}'.format(args.dataset)
-	l = NeuralLinearUCB(b.dim, args.lamdba, args.nu, args.hidden)
+	l = NeuralLinearUCB(20, args.lamdba, args.nu, args.hidden)
 	ucb_info = '_{:.3e}_{:.3e}'.format(args.lamdba, args.nu)
 
 	regrets = []
 	summ = 0
-	for t in range(min(args.size, b.size)):
-		context, rwd = b.step()
+	for t in range(10000):
+		context, rwd = contexts[t], rewards[t]
 		arm_select = l.select(context)
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
@@ -177,7 +121,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/mnist/linear_neural_UCB"
+	path = "out/logs/demo/linear_neural_greedy"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
