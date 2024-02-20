@@ -47,7 +47,7 @@ class NeuralUCBDiag:
 		sampled = mu + UCB
 		arm = np.argmax(sampled.cpu().detach().numpy())
 		self.base_arm[arm] += 1
-		return arm, logsigma, UCB
+		return arm, mu, logsigma, UCB
 
 	def train(self, context, reward):
 		self.context_list.append(torch.from_numpy(context.reshape(1, -1)).float())
@@ -78,7 +78,7 @@ class NeuralUCBDiag:
 				batch_loss += loss.item()
 				ite += 1
 				#HERE
-				if ite >= 500:
+				if ite >= 1000:
 					return batch_loss/total_step
 
 	def update_model(self, context, arm_select, reward):
@@ -94,10 +94,10 @@ class NeuralUCBDiag:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	with open ('contexts', 'rb') as fp:
+	with open ('out/logs/demo/demo1/contexts', 'rb') as fp:
 		contexts = pickle.load(fp)
 
-	with open ('rewards', 'rb') as fp:
+	with open ('out/logs/demo/demo1/rewards', 'rb') as fp:
 		rewards = pickle.load(fp)
 
 	parser.add_argument('--size', default=10000, type=int, help='bandit size')
@@ -112,14 +112,15 @@ if __name__ == '__main__':
 	l = NeuralUCBDiag(20, args.lamdba, args.nu, args.hidden)
 	ucb_info = '_{:.3e}_{:.3e}'.format(args.lamdba, args.nu)
 
-	regrets, list_logsigma, list_UCB = [], [], []
+	regrets, list_mu, list_logsigma, list_UCB = [], [], [], []
 	summ = 0
 	for t in range(10000):
 		context, rwd = contexts[t], rewards[t]
-		arm_select, log_sigma, UCB = l.select(context)
+		arm_select, mu, log_sigma, UCB = l.select(context)
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
+		list_mu.append(mu)
 		list_logsigma.append(log_sigma)
 		list_UCB.append(UCB)
 		# l.update_model(context, arm_select, rwd)
@@ -140,6 +141,9 @@ if __name__ == '__main__':
 		fr.write(str(i))
 		fr.write("\n")
 	fr.close()
+
+	with open('list_mu', 'wb') as fp:
+		pickle.dump(list_mu, fp)
 
 	with open('list_logsigma', 'wb') as fp:
 		pickle.dump(list_logsigma, fp)

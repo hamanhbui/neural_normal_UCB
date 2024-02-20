@@ -82,7 +82,7 @@ class Network(nn.Module):
 		super(Network, self).__init__()
 		self.fc1 = nn.Linear(dim, hidden_size)
 		self.activate = nn.ReLU()
-		self.fc2 = nn.Linear(hidden_size, 7840)
+		self.fc2 = nn.Linear(hidden_size, 64)
 	def forward(self, x):
 		return self.fc2(self.activate(self.fc1(x)))
 
@@ -93,6 +93,7 @@ class NeuralLinearUCB:
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
+		dim = 64
 		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
 		self.b = np.zeros((self.n_arm, dim))
 		self.A_inv = np.array([np.eye(dim) for _ in range(self.n_arm)])
@@ -146,7 +147,7 @@ if __name__ == '__main__':
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
-	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
+	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
 	parser.add_argument('--lamdba', type=float, default=0.001, metavar='l', help='lambda for regularzation')

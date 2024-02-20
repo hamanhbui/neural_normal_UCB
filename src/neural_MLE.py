@@ -84,7 +84,7 @@ class Network(nn.Module):
 
 class NeuralUCBDiag:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
-		self.n_arm = 10
+		self.n_arm = 7
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		# self.func.load_state_dict(torch.load("out.pth"))
 		self.context_list = []
@@ -105,7 +105,7 @@ class NeuralUCBDiag:
 		# sampled = mu + self.lamdba * torch.exp(logsigma)
 		arm = np.argmax(sampled.cpu().detach().numpy())
 		self.base_arm[arm] += 1
-		return arm, logsigma, UCB
+		return arm, mu, logsigma, UCB
 
 	def train(self, context, reward):
 		# return 0
@@ -192,8 +192,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
-	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
+	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
+	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
 	parser.add_argument('--lamdba', type=float, default=0.001, metavar='l', help='lambda for regularzation')
@@ -206,14 +206,15 @@ if __name__ == '__main__':
 	l = NeuralUCBDiag(b.dim, args.lamdba, args.nu, args.hidden)
 	ucb_info = '_{:.3e}_{:.3e}_{}'.format(args.lamdba, args.nu, args.hidden)
 
-	regrets, list_logsigma, list_UCB = [], [], []
+	regrets, list_mu, list_logsigma, list_UCB = [], [], [], []
 	summ = 0
 	for t in range(min(args.size, b.size)):
 		context, rwd = b.step()
-		arm_select, log_sigma, UCB = l.select(context)
+		arm_select, mu, log_sigma, UCB = l.select(context)
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
+		list_mu.append(mu)
 		list_logsigma.append(log_sigma)
 		list_UCB.append(UCB)
 		# l.update_model(context, arm_select, rwd)
@@ -228,15 +229,18 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 
-	path = "out/logs/mnist/neural_MLE"
+	path = "out/logs/shuttle/neural_MLE"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
 		fr.write("\n")
 	fr.close()
 
-	with open('out/logs/mnist/list_logsigma', 'wb') as fp:
+	with open('out/logs/shuttle/list_mu', 'wb') as fp:
+		pickle.dump(list_mu, fp)
+
+	with open('out/logs/shuttle/list_logsigma', 'wb') as fp:
 		pickle.dump(list_logsigma, fp)
 
-	with open('out/logs/mnist/list_UCB', 'wb') as fp:
+	with open('out/logs/shuttle/list_UCB', 'wb') as fp:
 		pickle.dump(list_UCB, fp)

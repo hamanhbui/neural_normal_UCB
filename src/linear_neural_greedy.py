@@ -73,27 +73,75 @@ def inv_sherman_morrison(u, A_inv):
 	A_inv -= np.outer(Au, Au)/(1+np.dot(u.T, Au))
 	return A_inv
 
-class LinearUCB:
-	def __init__(self, dim, lamdba=1, nu=1):
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class Network(nn.Module):
+	def __init__(self, dim, hidden_size=100):
+		super(Network, self).__init__()
+		self.fc1 = nn.Linear(dim, hidden_size)
+		self.activate = nn.ReLU()
+		self.fc2 = nn.Linear(hidden_size, 64)
+	def forward(self, x):
+		return self.fc2(self.activate(self.fc1(x)))
+
+class NeuralLinearUCB:
+	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
 		self.n_arm = 10
+		self.func = Network(dim, hidden_size=hidden).cuda()
+		self.context_list = []
+		self.reward = []
 		self.lamdba = lamdba
+		dim = 64
 		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
 		self.b = np.zeros((self.n_arm, dim))
 		self.A_inv = np.array([np.eye(dim) for _ in range(self.n_arm)])
 
 	def select(self, context):
-		ucb = np.array([np.sqrt(np.dot(context[a,:], np.dot(self.A_inv[a], context[a,:].T))) for a in range(self.n_arm)])
-		mu = np.array([np.dot(context[a,:], self.theta[a]) for a in range(self.n_arm)])
-		arm = np.argmax(mu + self.lamdba * ucb)
+		tensor = torch.from_numpy(context).float().cuda()
+		features = self.func(tensor).cpu().detach().numpy()
+		mu = np.array([np.dot(features[a,:], self.theta[a]) for a in range(self.n_arm)])
+		arm = np.argmax(mu)
 		return arm
 
 	def train(self, context, arm_select, reward):
+		self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
+		self.reward.append(reward)
+		optimizer = optim.SGD(self.func.parameters(), lr=1e-2, weight_decay=self.lamdba)
+		length = len(self.reward)
+		index = np.arange(length)
+		np.random.shuffle(index)
+		cnt = 0
+		tot_loss = 0
+		while True:
+			batch_loss = 0
+			for idx in index:
+				c = self.context_list[idx]
+				r = self.reward[idx]
+				optimizer.zero_grad()
+				features = self.func(c.cuda())
+				mu = torch.matmul(features, torch.from_numpy(self.theta[arm_select]).float().cuda())
+				delta = mu - r
+				loss = delta * delta
+				loss.backward()
+				optimizer.step()
+				batch_loss += loss.item()
+				tot_loss += loss.item()
+				cnt += 1
+				if cnt >= 1000:
+					return tot_loss / 1000
+			if batch_loss / length <= 1e-3:
+				return batch_loss / length
+
+	def update_model(self, context, arm_select, reward):
+		tensor = torch.from_numpy(context).float().cuda()
+		context = self.func(tensor).cpu().detach().numpy()
 		self.theta = np.array([np.matmul(self.A_inv[a], self.b[a]) for a in range(self.n_arm)])
 		self.b[arm_select] += context[arm_select] * reward[arm_select]
 		self.A_inv[arm_select] = inv_sherman_morrison(context[arm_select,:],self.A_inv[arm_select])
 
 if __name__ == '__main__':
-	#python3 train.py --nu 0.00001 --lamdba 0.00001 --dataset mnist
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument('--size', default=15000, type=int, help='bandit size')
@@ -102,12 +150,13 @@ if __name__ == '__main__':
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
 	parser.add_argument('--lamdba', type=float, default=0.001, metavar='l', help='lambda for regularzation')
+	parser.add_argument('--hidden', type=int, default=100, help='network hidden size')
 
 	args = parser.parse_args()
 	use_seed = None if args.seed == 0 else args.seed
 	b = Bandit_multi(args.dataset, is_shuffle=args.shuffle, seed=use_seed)
 	bandit_info = '{}'.format(args.dataset)
-	l = LinearUCB(b.dim, args.lamdba, args.nu)
+	l = NeuralLinearUCB(b.dim, args.lamdba, args.nu, args.hidden)
 	ucb_info = '_{:.3e}_{:.3e}'.format(args.lamdba, args.nu)
 
 	regrets = []
@@ -118,12 +167,17 @@ if __name__ == '__main__':
 		r = rwd[arm_select]
 		reg = np.max(rwd) - r
 		summ+=reg
-		l.train(context, arm_select, rwd)
+		l.update_model(context, arm_select, rwd)
+		if t<2000:
+			loss = l.train(context, arm_select, r)
+		else:
+			if t%100 == 0:
+				loss = l.train(context, arm_select, r)
 		regrets.append(summ)
 		if t % 100 == 0:
-			print('{}: {:.3f}'.format(t, summ))
+			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/mnist/linear_UCB"
+	path = "out/logs/mnist/linear_neural_greedy"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
