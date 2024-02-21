@@ -19,26 +19,30 @@ class Bandit_multi:
 		x = np.random.randn(self.n_arms, self.dim)
 		x /= np.repeat(np.linalg.norm(x, axis=-1, ord=2), self.dim).reshape(self.n_arms, self.dim)
 		
-		noise = self.noise_std*np.random.randn()
-		rwd = np.array(
-			[
-				self.h(x[k]) + noise
-				for k in itertools.product(range(self.n_arms))
-			]
-		).reshape(self.n_arms)
+		rwd, psd_rwd = [], []
+		for k in itertools.product(range(self.n_arms)):
+			tmp = self.h(x[k])
+			psd_rwd.append(tmp)
+			rwd.append(tmp + self.noise_std*np.random.randn())
+		psd_rwd = np.array(psd_rwd).reshape(self.n_arms)
+		rwd = np.array(rwd).reshape(self.n_arms)
 		
-		return x, rwd
+		return x, rwd, psd_rwd
 
 
 b = Bandit_multi()
-contexts, rewards = [], []
+contexts, rewards, psd_rewards = [], [], []
 for t in range(b.size):
-    context, rwd = b.step()
-    contexts.append(context)
-    rewards.append(rwd)
+	context, rwd, psd_rwd = b.step()
+	contexts.append(context)
+	rewards.append(rwd)
+	psd_rewards.append(psd_rwd)
 
 with open('contexts', 'wb') as fp:
-    pickle.dump(contexts, fp)
+	pickle.dump(contexts, fp)
 
 with open('rewards', 'wb') as fp:
-    pickle.dump(rewards, fp)
+	pickle.dump(rewards, fp)
+
+with open('psd_rewards', 'wb') as fp:
+	pickle.dump(psd_rewards, fp)

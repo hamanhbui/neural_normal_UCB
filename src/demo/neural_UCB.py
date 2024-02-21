@@ -89,6 +89,9 @@ if __name__ == '__main__':
 
 	with open ('rewards', 'rb') as fp:
 		rewards = pickle.load(fp)
+	
+	with open ('psd_rewards', 'rb') as fp:
+		psd_rewards = pickle.load(fp)
 
 	parser.add_argument('--size', default=10000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
@@ -105,16 +108,15 @@ if __name__ == '__main__':
 	regrets = []
 	summ = 0
 	for t in range(10000):
-		context, rwd = contexts[t], rewards[t]
+		context, rwd, psd_rwd = contexts[t], rewards[t], psd_rewards[t]
 		arm_select, nrm, sig, ave_rwd = l.select(context)
-		r = rwd[arm_select]
-		reg = np.max(rwd) - r
+		reg = np.max(psd_rwd) - psd_rwd[arm_select]
 		summ+=reg
 		if t<2000:
-			loss = l.train(context[arm_select], r)
+			loss = l.train(context[arm_select], rwd[arm_select])
 		else:
 			if t%100 == 0:
-				loss = l.train(context[arm_select], r)
+				loss = l.train(context[arm_select], rwd[arm_select])
 		regrets.append(summ)
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}, {:.3e}, {:.3e}, {:.3e}'.format(t, summ, loss, nrm, sig, ave_rwd))

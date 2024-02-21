@@ -78,7 +78,7 @@ class NeuralUCBDiag:
 				batch_loss += loss.item()
 				ite += 1
 				#HERE
-				if ite >= 1000:
+				if ite >= 500:
 					return batch_loss/total_step
 
 	def update_model(self, context, arm_select, reward):
@@ -94,11 +94,14 @@ class NeuralUCBDiag:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	with open ('out/logs/demo/demo1/contexts', 'rb') as fp:
+	with open ('contexts', 'rb') as fp:
 		contexts = pickle.load(fp)
 
-	with open ('out/logs/demo/demo1/rewards', 'rb') as fp:
+	with open ('rewards', 'rb') as fp:
 		rewards = pickle.load(fp)
+	
+	with open ('psd_rewards', 'rb') as fp:
+		psd_rewards = pickle.load(fp)
 
 	parser.add_argument('--size', default=10000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
@@ -115,20 +118,19 @@ if __name__ == '__main__':
 	regrets, list_mu, list_logsigma, list_UCB = [], [], [], []
 	summ = 0
 	for t in range(10000):
-		context, rwd = contexts[t], rewards[t]
+		context, rwd, psd_rwd = contexts[t], rewards[t], psd_rewards[t]
 		arm_select, mu, log_sigma, UCB = l.select(context)
-		r = rwd[arm_select]
-		reg = np.max(rwd) - r
+		reg = np.max(psd_rwd) - psd_rwd[arm_select]
 		summ+=reg
 		list_mu.append(mu)
 		list_logsigma.append(log_sigma)
 		list_UCB.append(UCB)
 		# l.update_model(context, arm_select, rwd)
 		if t<2000:
-			loss = l.train(context[arm_select], r)
+			loss = l.train(context[arm_select], rwd[arm_select])
 		else:
 			if t%100 == 0:
-				loss = l.train(context[arm_select], r)
+				loss = l.train(context[arm_select], rwd[arm_select])
 			# else:
 			# 	l.update_model(context, arm_select, rwd)
 		regrets.append(summ)

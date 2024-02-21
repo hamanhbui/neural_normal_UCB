@@ -42,6 +42,9 @@ if __name__ == '__main__':
 	with open ('rewards', 'rb') as fp:
 		rewards = pickle.load(fp)
 
+	with open ('psd_rewards', 'rb') as fp:
+		psd_rewards = pickle.load(fp)
+
 	parser.add_argument('--size', default=10000, type=int, help='bandit size')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
 	parser.add_argument('--lamdba', type=float, default=0.001, metavar='l', help='lambda for regularzation')
@@ -53,10 +56,9 @@ if __name__ == '__main__':
 	regrets = []
 	summ = 0
 	for t in range(len(contexts)):
-		context, rwd = contexts[t], rewards[t]
+		context, rwd, psd_rwd = contexts[t], rewards[t], psd_rewards[t]
 		arm_select = l.select(context)
-		r = rwd[arm_select]
-		reg = np.max(rwd) - r
+		reg = np.max(psd_rwd) - psd_rwd[arm_select]
 		summ+=reg
 		l.train(context, arm_select, rwd)
 		regrets.append(summ)
