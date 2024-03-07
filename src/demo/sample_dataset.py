@@ -8,10 +8,10 @@ class Bandit_multi:
 		self.n_arms = 4
 		a = np.random.randn(self.dim)
 		a /= np.linalg.norm(a, ord=2)
-		# A = 1.0 * np.random.randn(self.dim, self.dim)
-		# self.h = lambda x: 10*(np.dot(x, a))**2
+		A = np.random.randn(self.dim, self.dim)
+		self.h = lambda x: 10*(np.dot(x, a))**2
 		# self.h = lambda x: np.matmul(np.matmul(np.matmul(x, A), A), x)
-		self.h = lambda x: np.cos(3*np.dot(x, a))
+		# self.h = lambda x: np.cos(3*np.dot(x, a))
 		self.noise_std = 1.0
 		self.size = 10000
 

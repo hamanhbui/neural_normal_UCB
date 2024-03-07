@@ -90,8 +90,8 @@ class NeuralUCBDiag:
 		self.context_list = []
 		self.reward = []
 		self.lamdba = lamdba
-		self.T = 1
-		self.base_arm = torch.ones(self.n_arm) * 2
+		self.T = 0
+		self.base_arm = torch.zeros(self.n_arm)
 
 	def select(self, context):
 		self.T += 1
@@ -99,10 +99,11 @@ class NeuralUCBDiag:
 		output = self.func(tensor)
 		mu, logsigma = output[:, 0], output[:, 1]
 
-		UCB = torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
+		# UCB = torch.sqrt((np.log(self.T)/self.base_arm).cuda() *  torch.min(torch.ones(self.n_arm).cuda() * 1/4, torch.exp(logsigma)**2 + torch.sqrt((2*np.log(self.T))/self.base_arm).cuda()))
+		# UCB = torch.sqrt(16 * ((self.base_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.base_arm-1).cuda()) * (np.log(self.T - 1)/self.base_arm).cuda())
+		UCB = torch.sqrt(16 * (torch.exp(logsigma)**2).cuda() * (np.log(self.T)/self.base_arm).cuda())
+		# UCB = torch.exp(logsigma).cuda() 
 		sampled = mu + self.lamdba * UCB
-		# sampled = mu + torch.sqrt(16 * ((self.base_arm.cuda() * torch.exp(logsigma)**2).cuda()/(self.base_arm-1).cuda()) * (np.log(self.T - 1)/self.base_arm).cuda())
-		# sampled = mu + self.lamdba * torch.exp(logsigma)
 		arm = np.argmax(sampled.cpu().detach().numpy())
 		self.base_arm[arm] += 1
 		return arm, mu, logsigma, UCB
@@ -175,18 +176,18 @@ class NeuralUCBDiag:
 		# 		return batch_loss / length
 
 	def update_model(self, context, arm_select, reward):
-		# self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
-		# self.reward.append(reward[arm_select])
-		# return
-		optimizer = optim.Adam(self.func.fc2.parameters())
-		tensor = torch.from_numpy(context[arm_select]).float().cuda()
-		optimizer.zero_grad()
-		output = self.func(tensor)
-		mu, logsigma = output[0], output[1]
-		# loss = (reward[arm_select] - mu) ** 2
-		loss = 2 * logsigma + ((reward[arm_select] - mu) / torch.exp(logsigma)) ** 2
-		loss.backward()
-		optimizer.step()
+		self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
+		self.reward.append(reward[arm_select])
+
+		# optimizer = optim.Adam(self.func.fc2.parameters())
+		# tensor = torch.from_numpy(context[arm_select]).float().cuda()
+		# optimizer.zero_grad()
+		# output = self.func(tensor)
+		# mu, logsigma = output[0], output[1]
+		# # loss = (reward[arm_select] - mu) ** 2
+		# loss = 2 * logsigma + ((reward[arm_select] - mu) / torch.exp(logsigma)) ** 2
+		# loss.backward()
+		# optimizer.step()
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -223,8 +224,8 @@ if __name__ == '__main__':
 		else:
 			if t%100 == 0:
 				loss = l.train(context[arm_select], r)
-			# else:
-			# 	l.update_model(context, arm_select, rwd)
+			else:
+				l.update_model(context, arm_select, rwd)
 		regrets.append(summ)
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
