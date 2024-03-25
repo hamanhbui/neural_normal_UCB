@@ -15,11 +15,11 @@ def get_regret(filename):
     return regret_list
 
 
-linear_regret = get_regret('out/logs/shuttle/linear_UCB')
-neural_regret = get_regret('out/logs/shuttle/neural_UCB')
-linear_neural_greedy_regret = get_regret('out/logs/shuttle/linear_neural_greedy')
-linear_neural_regret = get_regret('out/logs/shuttle/linear_neural_UCB')
-ours_regret_log = get_regret('out/logs/shuttle/neural_MLE')
+linear_regret = get_regret('out/logs/mnist2/linear_UCB')
+neural_regret = get_regret('out/logs/mnist2/neural_UCB')
+linear_neural_greedy_regret = get_regret('out/logs/mnist2/linear_neural_greedy')
+linear_neural_regret = get_regret('out/logs/mnist2/linear_neural_UCB')
+ours_regret_log = get_regret('out/logs/mnist2/neural_MLE')
 
 plt.plot(linear_regret, label = "Linear_UCB")
 plt.plot(neural_regret, label = "Neural_UCB")

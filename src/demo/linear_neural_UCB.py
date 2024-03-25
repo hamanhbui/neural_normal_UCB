@@ -33,6 +33,7 @@ class NeuralLinearUCB:
 		self.n_arm = 4
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
+		self.arm_list = []
 		self.reward = []
 		self.lamdba = lamdba
 		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
@@ -49,6 +50,7 @@ class NeuralLinearUCB:
 
 	def train(self, context, arm_select, reward):
 		self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
+		self.arm_list.append(arm_select)
 		self.reward.append(reward)
 		optimizer = optim.SGD(self.func.parameters(), lr=1e-2, weight_decay=self.lamdba)
 		length = len(self.reward)
@@ -60,10 +62,11 @@ class NeuralLinearUCB:
 			batch_loss = 0
 			for idx in index:
 				c = self.context_list[idx]
+				a = self.arm_list[idx]
 				r = self.reward[idx]
 				optimizer.zero_grad()
 				features = self.func(c.cuda())
-				mu = torch.matmul(features, torch.from_numpy(self.theta[arm_select]).float().cuda())
+				mu = torch.matmul(features, torch.from_numpy(self.theta[a]).float().cuda())
 				delta = mu - r
 				loss = delta * delta
 				loss.backward()

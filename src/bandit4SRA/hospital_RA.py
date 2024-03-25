@@ -6,7 +6,7 @@ import tensorflow as tf
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-dataframe = pd.read_csv('data/out2.csv')
+dataframe = pd.read_csv('data/covid_data2/out.csv')
 list_tmp = []
 for index in range(1, dataframe.shape[1], 1): 
 	for t in range(1):    
@@ -159,10 +159,9 @@ def CNeural_RA(list_data, K, list_Q, T):
 			with tf.GradientTape() as tape:
 				mu_bar = model(x_batch_train)
 				# a = oracle(mu_bar, list_Q[t])
-				loss = 0
-				for i in range(K):
-					loss += tf.pow(mu_bar[i][a_batch_train[i]] - y_batch_train[i], 2)
-				# loss = loss/K
+				mu_bar = tf.gather(mu_bar, indices = a_batch_train, batch_dims=1)
+				loss = tf.reduce_sum(tf.pow(mu_bar - y_batch_train, 2))
+				
 			grads = tape.gradient(loss, model.trainable_weights)
 			optimizer.apply_gradients(zip(grads, model.trainable_weights))
 			metrics['nll'].update_state(loss)
@@ -185,30 +184,24 @@ def plot_by_normal(plt, value, label, color):
 	plt.fill_between(np.arange(len(mean)), mean - std, mean + std, alpha=0.3, color = color)
 	plt.plot(mean, label = label, color = color)
 
+def get_list_Q(list_data):
+	list_Q = []
+	for i in range(len(list_data)):
+		list_Q.append(int(sum(list_data[i][:,5])))
+	return np.array(list_Q)
+
 if __name__ == "__main__":
 	N = 1
 	T = list_data.shape[0]
 	K = list_data.shape[1]
 	reg_UCB, reg_greedy, eps_greedy, reg_gp = [], [], [], []
 	reward_UCB, reward_greedy, reward_eps_greedy, reward_gp = [], [], [], []
+	# list_Q = get_list_Q(list_data)
 
 	for i in range(N):
 		list_Q = np.random.normal(2000, 100, T)
 		list_Q = list_Q.astype(int)
-		# test = np.random.multivariate_normal(mean, cov, T)
-		# list_data = test.reshape(test.shape[0], list_data.shape[1], list_data.shape[2])
-
-		# mean_ood = np.copy(mean)
-		# mean_ood = mean_ood.reshape(list_data.shape[1], list_data.shape[2])
-		# np.random.shuffle(mean_ood)
-		# mean_ood = mean_ood.reshape(list_data.shape[1] * list_data.shape[2])
-		# test_ood = np.random.multivariate_normal(mean_ood, np.ones(cov.shape) * 0.1, int(T/2))
-		# # test_ood = np.random.multivariate_normal(mean_ood, cov, int(T/2))
-		# list_data_ood = test_ood.reshape(test_ood.shape[0], list_data.shape[1], list_data.shape[2])
-		# list_data = np.concatenate((list_data, list_data_ood))
-
 		reg, reward = CNeural_RA(list_data, K, list_Q, T)
-		# reg, reward = Density_CUCB_RA(list_data, K, list_Q, T)
 		reg_gp.append(np.cumsum(reg))
 		reward_gp.append(reward)
 		reg, reward = CUCB_RA(list_data, K, list_Q, T)
@@ -226,7 +219,6 @@ if __name__ == "__main__":
 	plot_by_normal(axs[0], reg_greedy, "Greedy", "#2ca02c")
 	plot_by_normal(axs[0], eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
 	plot_by_normal(axs[0], reg_gp, "CNeural_RA", "#1f77b4")
-	# plot_by_normal(axs[0], reg_gp, "DUCB_RA", "#1f77b4")
 
 	axs[0].set_xlabel("Steps")
 	axs[0].set_ylabel("Cumulative Regret")
@@ -236,10 +228,9 @@ if __name__ == "__main__":
 	plot_by_normal(axs[1], reward_greedy, "Greedy", "#2ca02c")
 	plot_by_normal(axs[1], reward_eps_greedy, "$\epsilon$-Greedy $\epsilon=0.1$", "#d62728")
 	plot_by_normal(axs[1], reward_gp, "CNeural_RA", "#1f77b4")
-	# plot_by_normal(axs[1], reward_gp, "DUCB_RA", "#1f77b4")
 	
 	axs[1].set_xlabel("Steps")
 	axs[1].set_ylabel("Reward")
 	axs[1].legend()
 	plt.tight_layout()
-	plt.savefig("out/hospital_RA.png")
+	plt.savefig("out/hospital_RA2.png")

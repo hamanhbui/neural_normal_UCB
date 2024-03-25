@@ -75,7 +75,7 @@ def inv_sherman_morrison(u, A_inv):
 
 class LinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1):
-		self.n_arm = 10
+		self.n_arm = 7
 		self.lamdba = lamdba
 		self.theta = np.random.uniform(-1, 1, (self.n_arm, dim))
 		self.b = np.zeros((self.n_arm, dim))
@@ -96,8 +96,8 @@ if __name__ == '__main__':
 	#python3 train.py --nu 0.00001 --lamdba 0.00001 --dataset mnist
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--size', default=15000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
+	parser.add_argument('--size', default=20000, type=int, help='bandit size')
+	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
@@ -123,7 +123,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}'.format(t, summ))
 	   
-	path = "out/logs/mnist/linear_UCB"
+	path = "out/logs/shuttle2/linear_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

@@ -88,9 +88,10 @@ class Network(nn.Module):
 
 class NeuralLinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
-		self.n_arm = 10
+		self.n_arm = 7
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
+		self.arm_list = []
 		self.reward = []
 		self.lamdba = lamdba
 		dim = 64
@@ -108,6 +109,7 @@ class NeuralLinearUCB:
 
 	def train(self, context, arm_select, reward):
 		self.context_list.append(torch.from_numpy(context[arm_select].reshape(1, -1)).float())
+		self.arm_list.append(arm_select)
 		self.reward.append(reward)
 		optimizer = optim.SGD(self.func.parameters(), lr=1e-2, weight_decay=self.lamdba)
 		length = len(self.reward)
@@ -119,10 +121,12 @@ class NeuralLinearUCB:
 			batch_loss = 0
 			for idx in index:
 				c = self.context_list[idx]
+				a = self.arm_list[idx]
 				r = self.reward[idx]
 				optimizer.zero_grad()
 				features = self.func(c.cuda())
-				mu = torch.matmul(features, torch.from_numpy(self.theta[arm_select]).float().cuda())
+				# mu = torch.matmul(features, torch.from_numpy(self.theta[a]).float().cuda())
+				mu = (features * torch.from_numpy(self.theta[a]).float().cuda()).sum(dim=1, keepdims=True)
 				delta = mu - r
 				loss = delta * delta
 				loss.backward()
@@ -145,8 +149,8 @@ class NeuralLinearUCB:
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--size', default=15000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
+	parser.add_argument('--size', default=20000, type=int, help='bandit size')
+	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
@@ -178,7 +182,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/mnist/linear_neural_UCB"
+	path = "out/logs/shuttle2/linear_neural_UCB_2"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

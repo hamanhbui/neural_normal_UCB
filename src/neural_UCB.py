@@ -143,7 +143,7 @@ class NeuralUCBDiag:
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--size', default=15000, type=int, help='bandit size')
+	parser.add_argument('--size', default=20000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
@@ -175,7 +175,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}, {:.3e}, {:.3e}, {:.3e}'.format(t, summ, loss, nrm, sig, ave_rwd))
 	
-	path = "out/logs/shuttle/neural_UCB"
+	path = "out/logs/shuttle2/neural_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
