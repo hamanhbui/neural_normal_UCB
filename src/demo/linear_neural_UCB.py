@@ -66,7 +66,8 @@ class NeuralLinearUCB:
 				r = self.reward[idx]
 				optimizer.zero_grad()
 				features = self.func(c.cuda())
-				mu = torch.matmul(features, torch.from_numpy(self.theta[a]).float().cuda())
+				# mu = torch.matmul(features, torch.from_numpy(self.theta[a]).float().cuda())
+				mu = (features * torch.from_numpy(self.theta[a]).float().cuda()).sum(dim=1, keepdims=True)
 				delta = mu - r
 				loss = delta * delta
 				loss.backward()
@@ -76,8 +77,8 @@ class NeuralLinearUCB:
 				cnt += 1
 				if cnt >= 1000:
 					return tot_loss / 1000
-			if batch_loss / length <= 1e-3:
-				return batch_loss / length
+			# if batch_loss / length <= 1e-3:
+			# 	return batch_loss / length
 
 	def update_model(self, context, arm_select, reward):
 		tensor = torch.from_numpy(context).float().cuda()

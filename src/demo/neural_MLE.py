@@ -65,7 +65,7 @@ class NeuralLinearUCB:
 		tot_loss = 0
 		while True:
 			batch_loss = 0
-			train_loader = DataLoader(train_set, batch_size = 1, shuffle = True)
+			train_loader = DataLoader(train_set, batch_size = 64, shuffle = True)
 			for batch_idx, (samples, arms, labels) in enumerate(train_loader):
 				samples = samples.reshape(samples.shape[0] * samples.shape[1], samples.shape[2]).float().cuda()
 				labels = labels.reshape(labels.shape[0], 1).cuda()
@@ -73,7 +73,7 @@ class NeuralLinearUCB:
 				features = self.func(samples.cuda())
 				mu = (features * torch.from_numpy(self.theta[arms]).float().cuda()).sum(dim=1, keepdims=True)
 				sigma = 1/2 * (torch.from_numpy(self.sigma[arms]).float().cuda() + (mu-labels)**2)
-				# loss = (mu - r)**2
+				# loss = (mu - labels)**2
 				loss = torch.mean(1/2 * torch.log(2*np.pi*sigma) + (labels-mu)**2/(2*sigma))
 				loss.backward()
 				optimizer.step()
@@ -96,15 +96,16 @@ class NeuralLinearUCB:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	with open ('out/logs/demo/demo1/contexts', 'rb') as fp:
+	with open ('contexts', 'rb') as fp:
 		contexts = pickle.load(fp)
 
-	with open ('out/logs/demo/demo1/rewards', 'rb') as fp:
+	with open ('rewards', 'rb') as fp:
 		rewards = pickle.load(fp)
 	
-	with open ('out/logs/demo/demo1/psd_rewards', 'rb') as fp:
+	with open ('psd_rewards', 'rb') as fp:
 		psd_rewards = pickle.load(fp)
 
+	parser.add_argument("--exp_idx", help="Index of experiment")
 	parser.add_argument('--size', default=10000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=1, metavar='1 / 0', help='shuffle the data set or not')
@@ -134,7 +135,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/demo/neural_MLE"
+	path = "out/logs/demo/neural_MLE" + str(args.exp_idx)
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

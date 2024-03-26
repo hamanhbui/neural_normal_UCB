@@ -15,29 +15,29 @@ def get_regret(filename):
 	return regret_list
 
 
-linear_regret = get_regret('out/logs/demo/cos1/linear_UCB')
-linear_regret2 = get_regret('out/logs/demo/cos2/linear_UCB')
-linear_regret3 = get_regret('out/logs/demo/cos3/linear_UCB')
+linear_regret = get_regret('out/logs/mnist/linear_UCB')
+linear_regret2 = get_regret('out/logs/mnist/linear_UCB')
+linear_regret3 = get_regret('out/logs/mnist/linear_UCB')
 linear_regret = [linear_regret, linear_regret2, linear_regret3]
 
-neural_regret = get_regret('out/logs/demo/cos1/neural_UCB')
-neural_regret2 = get_regret('out/logs/demo/cos2/neural_UCB')
-neural_regret3 = get_regret('out/logs/demo/cos3/neural_UCB')
+neural_regret = get_regret('out/logs/mnist/neural_UCB')
+neural_regret2 = get_regret('out/logs/mnist/neural_UCB_1')
+neural_regret3 = get_regret('out/logs/mnist/neural_UCB')
 neural_regret = [neural_regret, neural_regret2, neural_regret3]
 
-linear_neural_greedy_regret = get_regret('out/logs/demo/cos1/linear_neural_greedy')
-linear_neural_greedy_regret2 = get_regret('out/logs/demo/cos2/linear_neural_greedy')
-linear_neural_greedy_regret3 = get_regret('out/logs/demo/cos3/linear_neural_greedy')
+linear_neural_greedy_regret = get_regret('out/logs/mnist/linear_neural_greedy')
+linear_neural_greedy_regret2 = get_regret('out/logs/mnist/linear_neural_greedy_1')
+linear_neural_greedy_regret3 = get_regret('out/logs/mnist/linear_neural_greedy_2')
 linear_neural_greedy_regret = [linear_neural_greedy_regret, linear_neural_greedy_regret2, linear_neural_greedy_regret3]
 
-linear_neural_regret = get_regret('out/logs/demo/cos1/linear_neural_UCB')
-linear_neural_regret2 = get_regret('out/logs/demo/cos2/linear_neural_UCB')
-linear_neural_regret3 = get_regret('out/logs/demo/cos3/linear_neural_UCB')
+linear_neural_regret = get_regret('out/logs/mnist/linear_neural_UCB')
+linear_neural_regret2 = get_regret('out/logs/mnist/linear_neural_UCB_1')
+linear_neural_regret3 = get_regret('out/logs/mnist/linear_neural_UCB_2')
 linear_neural_regret = [linear_neural_regret, linear_neural_regret2, linear_neural_regret3]
 
-ours_regret_log = get_regret('out/logs/demo/cos1/neural_MLE')
-ours_regret_log2 = get_regret('out/logs/demo/cos2/neural_MLE')
-ours_regret_log3 = get_regret('out/logs/demo/cos3/neural_MLE')
+ours_regret_log = get_regret('out/logs/mnist/neural_MLE1')
+ours_regret_log2 = get_regret('out/logs/mnist/neural_MLE2')
+ours_regret_log3 = get_regret('out/logs/mnist/neural_MLE6')
 ours_regret_log = [ours_regret_log, ours_regret_log2, ours_regret_log3]
 
 
@@ -60,5 +60,6 @@ plt.xlabel("Steps")
 plt.ylabel("Cumulative regret")
 
 plt.legend()
+plt.grid()
 plt.tight_layout()
 plt.savefig("out/out.pdf")

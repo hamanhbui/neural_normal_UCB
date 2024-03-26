@@ -88,7 +88,7 @@ class Network(nn.Module):
 
 class NeuralLinearUCB:
 	def __init__(self, dim, lamdba=1, nu=1, hidden=100):
-		self.n_arm = 7
+		self.n_arm = 10
 		self.func = Network(dim, hidden_size=hidden).cuda()
 		self.context_list = []
 		self.arm_list = []
@@ -136,8 +136,8 @@ class NeuralLinearUCB:
 				cnt += 1
 				if cnt >= 1000:
 					return tot_loss / 1000
-			if batch_loss / length <= 1e-3:
-				return batch_loss / length
+			# if batch_loss / length <= 1e-3:
+			# 	return batch_loss / length
 
 	def update_model(self, context, arm_select, reward):
 		tensor = torch.from_numpy(context).float().cuda()
@@ -149,8 +149,8 @@ class NeuralLinearUCB:
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--size', default=20000, type=int, help='bandit size')
-	parser.add_argument('--dataset', default='shuttle', metavar='DATASET')
+	parser.add_argument('--size', default=15000, type=int, help='bandit size')
+	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
 	parser.add_argument('--nu', type=float, default=1, metavar='v', help='nu for control variance')
@@ -182,7 +182,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/shuttle2/linear_neural_UCB_2"
+	path = "out/logs/mnist/linear_neural_UCB"
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))

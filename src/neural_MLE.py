@@ -123,7 +123,7 @@ class NeuralLinearUCB:
 		tot_loss = 0
 		while True:
 			batch_loss = 0
-			train_loader = DataLoader(train_set, batch_size = 16, shuffle = True)
+			train_loader = DataLoader(train_set, batch_size = 64, shuffle = True)
 			for batch_idx, (samples, arms, labels) in enumerate(train_loader):
 				samples = samples.reshape(samples.shape[0] * samples.shape[1], samples.shape[2]).float().cuda()
 				labels = labels.reshape(labels.shape[0], 1).cuda()
@@ -154,7 +154,8 @@ class NeuralLinearUCB:
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--size', default=20000, type=int, help='bandit size')
+	parser.add_argument("--exp_idx", help="Index of experiment")
+	parser.add_argument('--size', default=15000, type=int, help='bandit size')
 	parser.add_argument('--dataset', default='mnist', metavar='DATASET')
 	parser.add_argument('--shuffle', type=bool, default=0, metavar='1 / 0', help='shuffle the data set or not')
 	parser.add_argument('--seed', type=int, default=0, help='random seed for shuffle, 0 for None')
@@ -186,7 +187,7 @@ if __name__ == '__main__':
 		if t % 100 == 0:
 			print('{}: {:.3f}, {:.3e}'.format(t, summ, loss))
 	   
-	path = "out/logs/mnist2/neural_MLE"
+	path = "out/logs/mnist/neural_MLE" + str(args.exp_idx)
 	fr = open(path,'w')
 	for i in regrets:
 		fr.write(str(i))
